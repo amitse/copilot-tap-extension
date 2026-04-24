@@ -2,9 +2,10 @@
 
 Public starter repo for a **Copilot CLI Extension** that approximates a practical Claude-style workflow:
 
-1. **Monitors** watch background commands.
-2. **Classifiers** decide what enters a channel and what gets ignored.
-3. **Subscriptions** decide which channels should proactively surface updates back to the agent.
+- **Monitors** watch background commands.
+- **Prompt work items** re-run an agent prompt once or on a loop.
+- **Classifiers** decide what enters a channel and what gets ignored.
+- **Subscriptions** decide which channels should proactively surface updates back to the agent.
 
 This is built on **Copilot CLI Extensions** in `.github/extensions/`, not MCP servers or custom agents.
 
@@ -13,6 +14,7 @@ This is built on **Copilot CLI Extensions** in `.github/extensions/`, not MCP se
 | Concept | Meaning in this repo |
 | --- | --- |
 | Monitor | A background shell command started by the extension |
+| Prompt work item | A prompt sent back into the agent, once or on a fixed interval |
 | Channel | A named stream that stores accepted monitor lines and notes |
 | Classifier | Per-monitor rules for `includePattern`, `excludePattern`, and `notifyPattern` |
 | Subscription | Channel-level delivery mode for proactive updates: `important` or `all` |
@@ -52,11 +54,13 @@ That gives you a clean split between rules the user owns and rules the model can
 
 - Repo-scoped extension at `.github/extensions/copilot-channels-extension/extension.mjs`
 - Session-only and persistent monitors
+- One-shot and looped prompt work items
 - Session-only and persistent channel subscriptions
 - Per-monitor classifier rules:
   - `includePattern`
   - `excludePattern`
   - `notifyPattern`
+- Fixed-interval loops with `every: "5m"` style cadence
 - Batched agent notifications using subscribed channels
 - Config-backed protection for `managedBy: "user"` resources
 - Cross-platform monitor launching for Windows and macOS/Linux
@@ -66,9 +70,25 @@ That gives you a clean split between rules the user owns and rules the model can
 
 ```text
 .github/extensions/copilot-channels-extension/extension.mjs
+.github/copilot-instructions.md
+docs/use-cases.md
 copilot-channels.config.example.json
 examples/heartbeat.mjs
 ```
+
+## Guides
+
+- [Use cases and patterns](./docs/use-cases.md)
+- [Copilot instruction file](./.github/copilot-instructions.md)
+
+## Work types
+
+| Shape | How to define it | Best for |
+| --- | --- | --- |
+| Continuous command monitor | `command` only | log tails, watch scripts, long-running jobs |
+| Looped command work | `command` + `every` | polling APIs, recurring validators, periodic checks |
+| One-shot prompt work | `prompt` only | ask the agent to do a background check once |
+| Prompt loop | `prompt` + `every` | session-scoped `/loop` style maintenance or re-check tasks |
 
 ## Quick start
 
@@ -79,6 +99,17 @@ examples/heartbeat.mjs
 
 The example config creates a persistent `ops` channel, subscribes to it, and auto-starts a demo heartbeat monitor.
 
+## Loop semantics
+
+This extension now supports a lightweight, session-scoped loop model inspired by Claude scheduled tasks:
+
+- use `every: "5m"` or similar to re-run work on an interval
+- commands with `every` re-run after each completion
+- prompts with `every` re-send the prompt after each completion
+- prompts without `every` run once
+- loops are tied to the session and do not try to catch up missed runs
+- persistent config makes a loop come back on the next session start, but this is still not a durable cloud scheduler
+
 ## Example config
 
 ```json
@@ -87,6 +118,15 @@ The example config creates a persistent `ops` channel, subscribes to it, and aut
     {
       "name": "ops",
       "description": "Operational events from background monitors",
+      "subscription": {
+        "enabled": true,
+        "delivery": "important",
+        "managedBy": "user"
+      }
+    },
+    {
+      "name": "repo-maintenance",
+      "description": "Prompt-based maintenance loop",
       "subscription": {
         "enabled": true,
         "delivery": "important",
@@ -109,6 +149,19 @@ The example config creates a persistent `ops` channel, subscribes to it, and aut
         "notifyPattern": "warning|error|ready",
         "managedBy": "user"
       }
+    },
+    {
+      "name": "repo-maintenance",
+      "description": "Prompt-based loop for repo health checks",
+      "prompt": "Check whether there are new failing runs, PR review comments, or issue escalations worth addressing. Summarize only actionable changes.",
+      "every": "15m",
+      "channel": "repo-maintenance",
+      "autoStart": false,
+      "managedBy": "user",
+      "classifier": {
+        "notifyPattern": "failed|changes requested|escalated|urgent",
+        "managedBy": "user"
+      }
     }
   ]
 }
@@ -124,7 +177,7 @@ The example config creates a persistent `ops` channel, subscribes to it, and aut
 | `copilot_channels_subscribe` | Subscribe to a channel temporarily or persistently |
 | `copilot_channels_unsubscribe` | Stop proactive delivery from a channel |
 | `copilot_channels_list_monitors` | Show running monitors and persistent monitor definitions |
-| `copilot_channels_start_monitor` | Start a temporary or persistent monitor, optionally subscribing the channel |
+| `copilot_channels_start_monitor` | Start a command monitor, prompt task, or looped work item, optionally subscribing the channel |
 | `copilot_channels_set_classifier` | Update what a monitor admits into the stream and what notifies subscribers |
 | `copilot_channels_stop_monitor` | Stop a running monitor; optionally remove the persistent definition |
 

@@ -13,6 +13,7 @@ const CONFIG_LOCATIONS = [
 const MAX_CHANNEL_ENTRIES = 200;
 const DEFAULT_CHANNEL = "main";
 const DEFAULT_NOTIFY_PATTERN = /\b(error|warn|warning|fail|failed|healthy|ready|success|changed)\b/i;
+const LOOP_INTERVAL_PATTERN = /^\s*(?:every\s+)?(\d+)\s*(s|sec|secs|second|seconds|m|min|mins|minute|minutes|h|hr|hrs|hour|hours|d|day|days)\s*$/i;
 
 const channels = new Map();
 const monitors = new Map();
@@ -62,6 +63,42 @@ function clampLimit(value, fallback = 20) {
   return Math.min(Math.max(parsed, 1), 100);
 }
 
+function parseLoopInterval(value) {
+  if (value === undefined || value === null || String(value).trim() === "") {
+    return null;
+  }
+
+  const match = String(value).trim().match(LOOP_INTERVAL_PATTERN);
+  if (!match) {
+    throw new Error(`Invalid every interval '${value}'. Use values like 30s, 5m, 2h, or 1d.`);
+  }
+
+  const amount = Number.parseInt(match[1], 10);
+  if (Number.isNaN(amount) || amount < 1) {
+    throw new Error(`Invalid every interval '${value}'. The number must be 1 or greater.`);
+  }
+
+  const unitToken = match[2].toLowerCase();
+  let unit = "m";
+  let multiplier = 60 * 1000;
+
+  if (unitToken.startsWith("s")) {
+    unit = "s";
+    multiplier = 1000;
+  } else if (unitToken.startsWith("h")) {
+    unit = "h";
+    multiplier = 60 * 60 * 1000;
+  } else if (unitToken.startsWith("d")) {
+    unit = "d";
+    multiplier = 24 * 60 * 60 * 1000;
+  }
+
+  return {
+    text: `${amount}${unit}`,
+    ms: amount * multiplier
+  };
+}
+
 function toText(value) {
   if (typeof value === "string") {
     return value;
@@ -80,6 +117,22 @@ function toText(value) {
   }
 
   return String(value ?? "");
+}
+
+function previewText(value, maxLength = 120) {
+  const text = String(value ?? "").trim();
+  if (text.length <= maxLength) {
+    return text;
+  }
+
+  return `${text.slice(0, Math.max(maxLength - 3, 1))}...`;
+}
+
+function splitTextLines(value) {
+  return toText(value)
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
 }
 
 function compileRegex(pattern, label) {
@@ -272,12 +325,21 @@ function serializeChannel(channel) {
 function serializeMonitor(monitor) {
   const entry = {
     name: monitor.name,
-    command: monitor.command,
     channel: monitor.channel,
     autoStart: monitor.autoStart,
     includeStderr: monitor.includeStderr,
     managedBy: monitor.managedBy
   };
+
+  if (monitor.command) {
+    entry.command = monitor.command;
+  }
+  if (monitor.prompt) {
+    entry.prompt = monitor.prompt;
+  }
+  if (monitor.every) {
+    entry.every = monitor.every;
+  }
 
   if (monitor.description) {
     entry.description = monitor.description;
@@ -420,22 +482,36 @@ function formatClassifier(classifier) {
   return `include=${JSON.stringify(include)} exclude=${JSON.stringify(exclude)} notify=${JSON.stringify(notify)} scope=${classifier.scope} managedBy=${classifier.managedBy}`;
 }
 
+function describeMonitorWork(monitor) {
+  if (monitor.command) {
+    return `command=${monitor.command}`;
+  }
+
+  return `prompt=${JSON.stringify(previewText(monitor.prompt, 90))}`;
+}
+
 function formatRunningMonitor(monitor) {
   return [
     `- ${monitor.name}:`,
     `  status=${monitor.status}`,
     `  scope=${monitor.scope}`,
     `  managedBy=${monitor.managedBy}`,
+    `  workType=${monitor.workType}`,
+    `  execution=${monitor.executionMode}`,
     `  channel=${monitor.channel}`,
     `  subscription=${ensureChannel(monitor.channel).subscription.enabled ? "on" : "off"}`,
     `  cwd=${monitor.cwd}`,
-    `  command=${monitor.command}`,
+    `  ${describeMonitorWork(monitor)}`,
+    monitor.every ? `  every=${monitor.every}` : null,
     `  autoStart=${monitor.autoStart}`,
     `  includeStderr=${monitor.includeStderr}`,
+    `  runs=${monitor.runCount}`,
     `  acceptedLines=${monitor.lineCount}`,
     `  droppedLines=${monitor.droppedLineCount}`,
     `  classifier=${formatClassifier(monitor.classifier)}`,
     monitor.description ? `  description=${monitor.description}` : null,
+    monitor.lastRunAt ? `  lastRunAt=${monitor.lastRunAt}` : null,
+    monitor.lastRunStatus ? `  lastRunStatus=${monitor.lastRunStatus}` : null,
     monitor.exitCode !== null && monitor.exitCode !== undefined ? `  exitCode=${monitor.exitCode}` : null
   ]
     .filter(Boolean)
@@ -444,16 +520,25 @@ function formatRunningMonitor(monitor) {
 
 function formatConfiguredMonitor(entry) {
   const classifier = createClassifier(getClassifierInput(entry), entry.classifier?.managedBy ?? entry.managedBy ?? "user", "persistent");
+  const prompt = entry.prompt ? `  prompt=${JSON.stringify(previewText(entry.prompt, 90))}` : null;
+  const command = entry.command ? `  command=${entry.command}` : null;
+  const every = entry.every ? `  every=${entry.every}` : null;
+  const workType = entry.prompt ? "prompt" : "command";
+  const executionMode = entry.every ? "loop" : entry.prompt ? "once" : "process";
   return [
     `- ${normalizeName(entry.name)}:`,
     "  status=configured",
     "  scope=persistent",
     `  managedBy=${normalizeManagedBy(entry.managedBy, "user")}`,
+    `  workType=${workType}`,
+    `  execution=${executionMode}`,
     `  channel=${normalizeName(entry.channel, normalizeName(entry.name))}`,
     `  autoStart=${entry.autoStart !== false}`,
     `  includeStderr=${entry.includeStderr !== false}`,
     entry.cwd ? `  cwd=${entry.cwd}` : null,
-    `  command=${entry.command}`,
+    command,
+    prompt,
+    every,
     `  classifier=${formatClassifier(classifier)}`,
     entry.description ? `  description=${entry.description}` : null
   ]
@@ -541,36 +626,67 @@ function shouldNotifySubscribers(monitor, line, stream) {
   return DEFAULT_NOTIFY_PATTERN.test(line);
 }
 
+function isTerminalMonitorStatus(status) {
+  return status === "stopped" || status === "completed" || status === "exited" || status === "error";
+}
+
+function appendMonitorSystemMessage(monitor, text, notify = false) {
+  appendChannelMessage(monitor.channel, {
+    source: "system",
+    text,
+    monitorName: monitor.name
+  });
+
+  if (notify && ensureChannel(monitor.channel).subscription.enabled) {
+    queueNotification({
+      channel: monitor.channel,
+      monitorName: monitor.name,
+      stream: "system",
+      text
+    });
+  }
+}
+
+function handleMonitorLine(monitor, rawText, stream, source) {
+  const text = String(rawText ?? "").trim();
+  if (!text) {
+    return;
+  }
+
+  if (!classifierAllowsLine(monitor, text)) {
+    monitor.droppedLineCount += 1;
+    return;
+  }
+
+  monitor.lineCount += 1;
+  appendChannelMessage(monitor.channel, {
+    source,
+    text,
+    monitorName: monitor.name,
+    stream
+  });
+
+  if (shouldNotifySubscribers(monitor, text, stream)) {
+    queueNotification({
+      channel: monitor.channel,
+      monitorName: monitor.name,
+      stream,
+      text
+    });
+  }
+}
+
+function handleMonitorTextBlock(monitor, value, stream, source) {
+  for (const line of splitTextLines(value)) {
+    handleMonitorLine(monitor, line, stream, source);
+  }
+}
+
 function wireMonitorStream(monitor, input, stream) {
   const lineReader = readline.createInterface({ input });
 
   lineReader.on("line", (line) => {
-    const text = String(line).trim();
-    if (!text) {
-      return;
-    }
-
-    if (!classifierAllowsLine(monitor, text)) {
-      monitor.droppedLineCount += 1;
-      return;
-    }
-
-    monitor.lineCount += 1;
-    appendChannelMessage(monitor.channel, {
-      source: stream === "stderr" ? "monitor:stderr" : "monitor",
-      text,
-      monitorName: monitor.name,
-      stream
-    });
-
-    if (shouldNotifySubscribers(monitor, text, stream)) {
-      queueNotification({
-        channel: monitor.channel,
-        monitorName: monitor.name,
-        stream,
-        text
-      });
-    }
+    handleMonitorLine(monitor, line, stream, stream === "stderr" ? "monitor:stderr" : "monitor");
   });
 
   return lineReader;
@@ -596,10 +712,16 @@ function buildMonitorState(spec, baseCwd, defaults = {}) {
   if (!name) {
     throw new Error("Monitor name is required.");
   }
-  if (!String(spec.command ?? "").trim()) {
-    throw new Error(`Monitor '${name}' is missing a command.`);
+  const command = String(spec.command ?? "").trim();
+  const prompt = String(spec.prompt ?? "").trim();
+  if (!command && !prompt) {
+    throw new Error(`Monitor '${name}' must define either a command or a prompt.`);
+  }
+  if (command && prompt) {
+    throw new Error(`Monitor '${name}' cannot define both command and prompt. Choose one work type.`);
   }
 
+  const interval = parseLoopInterval(spec.every);
   const scope = normalizeScope(spec.scope, defaults.scope ?? "temporary");
   const managedBy = normalizeManagedBy(spec.managedBy, defaults.managedBy ?? "model");
   const classifier = createClassifier(
@@ -607,11 +729,18 @@ function buildMonitorState(spec, baseCwd, defaults = {}) {
     spec.classifier?.managedBy ?? managedBy,
     scope
   );
+  const workType = prompt ? "prompt" : "command";
+  const executionMode = interval ? "loop" : prompt ? "once" : "process";
 
   return {
     name,
     description: String(spec.description ?? "").trim(),
-    command: String(spec.command),
+    command: command || null,
+    prompt: prompt || null,
+    workType,
+    executionMode,
+    every: interval?.text ?? null,
+    everyMs: interval?.ms ?? null,
     requestedCwd: spec.cwd ?? null,
     cwd: resolveRequestedCwd(baseCwd, spec.cwd),
     channel: normalizeName(spec.channel, name),
@@ -624,8 +753,13 @@ function buildMonitorState(spec, baseCwd, defaults = {}) {
     stoppedAt: null,
     lineCount: 0,
     droppedLineCount: 0,
-    status: "running",
+    status: executionMode === "process" ? "running" : "queued",
     stopRequested: false,
+    timer: null,
+    inFlight: false,
+    runCount: 0,
+    lastRunAt: null,
+    lastRunStatus: null,
     process: null,
     stdoutReader: null,
     stderrReader: null,
@@ -633,20 +767,7 @@ function buildMonitorState(spec, baseCwd, defaults = {}) {
   };
 }
 
-async function startMonitor(spec, options = {}) {
-  const baseCwd = options.baseCwd ?? runtimeState.cwd;
-  const monitor = buildMonitorState(spec, baseCwd, options);
-  const existing = monitors.get(monitor.name);
-
-  if (existing && existing.status === "running") {
-    throw new Error(`Monitor '${monitor.name}' is already running.`);
-  }
-  if (existing) {
-    assertMutable(existing.managedBy, options.force, `Monitor '${monitor.name}'`);
-  }
-
-  ensureChannel(monitor.channel, monitor.description || `Events for ${monitor.name}`);
-
+function startContinuousProcessMonitor(monitor) {
   let child;
   try {
     child = spawnMonitorProcess(monitor.command, monitor.cwd);
@@ -655,57 +776,205 @@ async function startMonitor(spec, options = {}) {
   }
 
   monitor.process = child;
+  monitor.status = "running";
   monitor.stdoutReader = wireMonitorStream(monitor, child.stdout, "stdout");
   monitor.stderrReader = wireMonitorStream(monitor, child.stderr, "stderr");
 
   child.on("error", (error) => {
     monitor.status = "error";
-    appendChannelMessage(monitor.channel, {
-      source: "system",
-      text: `Monitor '${monitor.name}' failed: ${error.message}`,
-      monitorName: monitor.name
-    });
-
-    if (ensureChannel(monitor.channel).subscription.enabled) {
-      queueNotification({
-        channel: monitor.channel,
-        monitorName: monitor.name,
-        stream: "system",
-        text: `Monitor failed to stay alive: ${error.message}`
-      });
-    }
+    monitor.process = null;
+    appendMonitorSystemMessage(monitor, `Monitor '${monitor.name}' failed: ${error.message}`, true);
   });
 
   child.on("exit", (code, signal) => {
     monitor.status = monitor.stopRequested ? "stopped" : "exited";
     monitor.exitCode = code;
     monitor.stoppedAt = nowIso();
+    monitor.process = null;
+    monitor.stdoutReader = null;
+    monitor.stderrReader = null;
 
-    appendChannelMessage(monitor.channel, {
-      source: "system",
-      text: monitor.stopRequested
+    appendMonitorSystemMessage(
+      monitor,
+      monitor.stopRequested
         ? `Monitor '${monitor.name}' stopped.`
         : `Monitor '${monitor.name}' exited with code ${code ?? "null"}${signal ? ` (${signal})` : ""}.`,
-      monitorName: monitor.name
+      !monitor.stopRequested
+    );
+  });
+
+  appendMonitorSystemMessage(monitor, `Monitor '${monitor.name}' started with ${describeMonitorWork(monitor)}.`);
+}
+
+function scheduleMonitorIteration(monitor, delayMs = 0) {
+  if (monitor.stopRequested) {
+    return;
+  }
+
+  if (monitor.timer) {
+    clearTimeout(monitor.timer);
+  }
+
+  monitor.status = delayMs > 0 ? "waiting" : "queued";
+  monitor.timer = setTimeout(() => {
+    monitor.timer = null;
+    void runScheduledMonitorIteration(monitor);
+  }, delayMs);
+}
+
+async function runCommandLoopIteration(monitor) {
+  let child;
+  try {
+    child = spawnMonitorProcess(monitor.command, monitor.cwd);
+  } catch (error) {
+    return { ok: false, error: error.message };
+  }
+
+  monitor.process = child;
+  monitor.stdoutReader = wireMonitorStream(monitor, child.stdout, "stdout");
+  monitor.stderrReader = wireMonitorStream(monitor, child.stderr, "stderr");
+
+  return await new Promise((resolve) => {
+    let settled = false;
+
+    const finish = (result) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+
+      if (monitor.stdoutReader) {
+        monitor.stdoutReader.close();
+        monitor.stdoutReader = null;
+      }
+      if (monitor.stderrReader) {
+        monitor.stderrReader.close();
+        monitor.stderrReader = null;
+      }
+      monitor.process = null;
+      monitor.exitCode = result.code ?? monitor.exitCode;
+      resolve(result);
+    };
+
+    child.on("error", (error) => {
+      finish({ ok: false, error: error.message });
     });
 
-    if (!monitor.stopRequested && ensureChannel(monitor.channel).subscription.enabled) {
-      queueNotification({
-        channel: monitor.channel,
-        monitorName: monitor.name,
-        stream: "system",
-        text: `Monitor exited with code ${code ?? "null"}${signal ? ` (${signal})` : ""}.`
+    child.on("exit", (code, signal) => {
+      finish({
+        ok: (code ?? 0) === 0 || monitor.stopRequested,
+        code,
+        signal,
+        error: (code ?? 0) === 0 || monitor.stopRequested
+          ? null
+          : `Command iteration exited with code ${code ?? "null"}${signal ? ` (${signal})` : ""}`
       });
-    }
+    });
   });
+}
 
+async function runPromptIteration(monitor) {
+  try {
+    const response = await session.sendAndWait({ prompt: monitor.prompt });
+    const responseText = toText(response?.data?.content ?? response?.data ?? response);
+
+    if (responseText.trim()) {
+      handleMonitorTextBlock(monitor, responseText, "prompt", "monitor:prompt");
+    } else {
+      appendMonitorSystemMessage(monitor, `Monitor '${monitor.name}' received an empty response from prompt work.`);
+    }
+
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: error.message };
+  }
+}
+
+async function runScheduledMonitorIteration(monitor) {
+  if (monitor.stopRequested || monitor.inFlight) {
+    return;
+  }
+
+  monitor.inFlight = true;
+  monitor.status = "running";
+  monitor.runCount += 1;
+  monitor.lastRunAt = nowIso();
+
+  const result = monitor.workType === "prompt"
+    ? await runPromptIteration(monitor)
+    : await runCommandLoopIteration(monitor);
+
+  monitor.inFlight = false;
+
+  if (monitor.stopRequested) {
+    monitor.status = "stopped";
+    monitor.stoppedAt = nowIso();
+    appendMonitorSystemMessage(monitor, `Monitor '${monitor.name}' stopped.`);
+    return;
+  }
+
+  if (result.ok) {
+    monitor.lastRunStatus = "success";
+
+    if (monitor.executionMode === "once") {
+      monitor.status = "completed";
+      monitor.stoppedAt = nowIso();
+      appendMonitorSystemMessage(monitor, `Monitor '${monitor.name}' completed one run of ${monitor.workType} work.`);
+      return;
+    }
+
+    monitor.status = "waiting";
+    scheduleMonitorIteration(monitor, monitor.everyMs);
+    return;
+  }
+
+  monitor.lastRunStatus = "failure";
+  appendMonitorSystemMessage(monitor, `Monitor '${monitor.name}' iteration failed: ${result.error ?? "unknown error"}.`, true);
+
+  if (monitor.executionMode === "once") {
+    monitor.status = "error";
+    monitor.stoppedAt = nowIso();
+    return;
+  }
+
+  monitor.status = "waiting";
+  scheduleMonitorIteration(monitor, monitor.everyMs);
+}
+
+function startScheduledMonitor(monitor) {
+  const scheduleLabel = monitor.executionMode === "loop" ? `every ${monitor.every}` : "once";
+  appendMonitorSystemMessage(
+    monitor,
+    `Monitor '${monitor.name}' queued ${monitor.workType} work (${scheduleLabel}) with ${describeMonitorWork(monitor)}.`
+  );
+  scheduleMonitorIteration(monitor, 0);
+}
+
+async function startMonitor(spec, options = {}) {
+  const baseCwd = options.baseCwd ?? runtimeState.cwd;
+  const monitor = buildMonitorState(spec, baseCwd, options);
+  const existing = monitors.get(monitor.name);
+
+  if (existing && !isTerminalMonitorStatus(existing.status)) {
+    throw new Error(`Monitor '${monitor.name}' is already active.`);
+  }
+  if (existing) {
+    assertMutable(existing.managedBy, options.force, `Monitor '${monitor.name}'`);
+  }
+
+  ensureChannel(monitor.channel, monitor.description || `Events for ${monitor.name}`);
   monitors.set(monitor.name, monitor);
 
-  appendChannelMessage(monitor.channel, {
-    source: "system",
-    text: `Monitor '${monitor.name}' started with command: ${monitor.command}`,
-    monitorName: monitor.name
-  });
+  try {
+    if (monitor.executionMode === "process") {
+      startContinuousProcessMonitor(monitor);
+    } else {
+      startScheduledMonitor(monitor);
+    }
+  } catch (error) {
+    monitors.delete(monitor.name);
+    throw error;
+  }
 
   if (options.subscribe === true) {
     configureChannelSubscription(monitor.channel, {
@@ -731,21 +1000,39 @@ async function startMonitor(spec, options = {}) {
 }
 
 async function stopRunningMonitor(monitor) {
-  if (monitor.status !== "running") {
+  if (isTerminalMonitorStatus(monitor.status)) {
     return monitor;
   }
 
   monitor.stopRequested = true;
+
+  if (monitor.timer) {
+    clearTimeout(monitor.timer);
+    monitor.timer = null;
+  }
+
+  if (!monitor.process && !monitor.inFlight) {
+    monitor.status = "stopped";
+    monitor.stoppedAt = nowIso();
+    appendMonitorSystemMessage(monitor, `Monitor '${monitor.name}' stopped.`);
+    return monitor;
+  }
+
   monitor.status = "stopping";
 
   if (monitor.stdoutReader) {
     monitor.stdoutReader.close();
+    monitor.stdoutReader = null;
   }
   if (monitor.stderrReader) {
     monitor.stderrReader.close();
+    monitor.stderrReader = null;
   }
 
-  monitor.process.kill();
+  if (monitor.process) {
+    monitor.process.kill();
+  }
+
   return monitor;
 }
 
@@ -835,8 +1122,8 @@ function updateMonitorClassifier(name, input, options = {}) {
 }
 
 async function stopAllMonitors() {
-  const runningMonitors = [...monitors.values()].filter((monitor) => monitor.status === "running");
-  await Promise.allSettled(runningMonitors.map((monitor) => stopRunningMonitor(monitor)));
+  const activeMonitors = [...monitors.values()].filter((monitor) => !isTerminalMonitorStatus(monitor.status));
+  await Promise.allSettled(activeMonitors.map((monitor) => stopRunningMonitor(monitor)));
 }
 
 function listChannelsResult() {
@@ -862,7 +1149,7 @@ function listMonitorsResult() {
   }
 
   return [
-    `Running monitors (${running.length}):`,
+    `Session monitors (${running.length}):`,
     ...(running.length > 0 ? running.map((monitor) => formatRunningMonitor(monitor)) : ["- <none>"]),
     "",
     `Persistent monitor definitions (${configuredOnly.length}):`,
@@ -1033,20 +1320,22 @@ session = await joinSession({
     },
     {
       name: "copilot_channels_list_monitors",
-      description: "Lists running monitors and persistent monitor definitions.",
+      description: "Lists session monitors, loops, one-shot work items, and persistent definitions.",
       handler: async () => listMonitorsResult()
     },
     {
       name: "copilot_channels_start_monitor",
-      description: "Starts a monitor temporarily or persistently, with classifier rules and optional channel subscription.",
+      description: "Starts a continuous monitor, looped work item, or one-shot prompt task with classifier rules and optional channel subscription.",
       parameters: {
         type: "object",
         properties: {
           name: { type: "string", description: "Unique monitor name." },
-          command: { type: "string", description: "Shell command to run." },
+          command: { type: "string", description: "Shell command to run. Optional when prompt is provided." },
+          prompt: { type: "string", description: "Prompt to send to the agent. Optional when command is provided." },
           description: { type: "string", description: "Short summary." },
           channel: { type: "string", description: "Channel to receive accepted lines." },
           cwd: { type: "string", description: "Optional working directory relative to the session cwd." },
+          every: { type: "string", description: "Optional repeat interval like 30s, 5m, 2h, or 1d. When omitted, commands run continuously and prompts run once." },
           scope: { type: "string", description: "Use 'temporary' for session-only or 'persistent' to write config." },
           managedBy: { type: "string", description: "Controller label: 'user' or 'model'." },
           autoStart: { type: "boolean", description: "When persistent, whether the monitor should auto-start next session." },
@@ -1058,7 +1347,7 @@ session = await joinSession({
           delivery: { type: "string", description: "Subscription delivery mode: 'important' or 'all'." },
           force: { type: "boolean", description: "Required only when overriding a user-controlled monitor or subscription." }
         },
-        required: ["name", "command"]
+        required: ["name"]
       },
       handler: async (args) => {
         const scope = args.scope ?? "temporary";
@@ -1083,10 +1372,15 @@ session = await joinSession({
           `Started monitor '${monitor.name}'.`,
           `scope=${monitor.scope}`,
           `managedBy=${monitor.managedBy}`,
+          `workType=${monitor.workType}`,
+          `execution=${monitor.executionMode}`,
+          monitor.every ? `every=${monitor.every}` : null,
           `channel=${monitor.channel}`,
           `subscription=${ensureChannel(monitor.channel).subscription.enabled ? "on" : "off"}`,
           `classifier=${formatClassifier(monitor.classifier)}`
-        ].join("\n");
+        ]
+          .filter(Boolean)
+          .join("\n");
       }
     },
     {
@@ -1118,7 +1412,7 @@ session = await joinSession({
     },
     {
       name: "copilot_channels_stop_monitor",
-      description: "Stops a running monitor. With scope='persistent', it also removes the stored monitor definition from config.",
+      description: "Stops a running monitor, loop, or one-shot work item. With scope='persistent', it also removes the stored definition from config.",
       parameters: {
         type: "object",
         properties: {
@@ -1153,7 +1447,7 @@ session = await joinSession({
       return {
         additionalContext: [
           "copilot-channels-extension is active.",
-          "Use channel subscriptions when you want ongoing attention on a stream; use monitors to collect background output; use classifiers to decide what reaches the stream and what triggers delivery.",
+          "Use channel subscriptions when you want ongoing attention on a stream; use monitors to collect background output; use prompt-based work items and loops when the right action is to re-run a prompt or command over time; use classifiers to decide what reaches the stream and what triggers delivery.",
           "Subscribed channel updates are sent immediately from monitor output and do not wait for transcript events.",
           configSummary,
           subscriptionSummary()
