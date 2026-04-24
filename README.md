@@ -110,15 +110,15 @@ examples/heartbeat.mjs                  # demo emitter
 docs/                                   # detailed docs
 ```
 
-## Go deeper
+## Further reading
 
-| Doc | What's in it |
+| Document | Contents |
 | --- | --- |
-| **[Reference](./docs/reference.md)** | Full vocabulary, all tools, config schema, event pipeline details |
-| **[Use cases and patterns](./docs/use-cases.md)** | Real-world workflows and recipes |
-| **[Evals](./docs/evals.md)** | Testing infrastructure, smoke tests, interactive eval runner |
-| **[Copilot instructions](./.github/copilot-instructions.md)** | How the agent is told to use this extension |
-| **[Implementation plan](./PLAN.md)** | Design decisions and roadmap |
+| [Reference](./docs/reference.md) | All tools, config schema, event pipeline, and vocabulary |
+| [Use cases and patterns](./docs/use-cases.md) | Workflow recipes: deploy watchers, PR monitors, log tailers |
+| [Evals](./docs/evals.md) | Smoke tests and the interactive eval runner |
+| [Copilot instructions](./.github/copilot-instructions.md) | Guidance the agent follows when using this extension |
+| [Implementation plan](./PLAN.md) | Design decisions and current roadmap |
 
 ## Contributing
 
