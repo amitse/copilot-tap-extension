@@ -167,7 +167,7 @@ These are regression-sensitive and should be checked often:
 
 ### 1. No hidden notify fallback
 
-When no `notifyPattern` exists, the system should not apply a secret built-in regex. A subscribed stream should remain unfiltered until a `notifyPattern` is introduced.
+When no `notifyPattern` exists, the system should not apply a secret built-in regex. With `delivery="important"`, live delivery should stay quiet until a `notifyPattern` is introduced, while accepted lines still land in the channel.
 
 ### 2. Line granularity
 

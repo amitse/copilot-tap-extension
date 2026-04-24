@@ -53,7 +53,7 @@ cases:
     pass_conditions:
       - Monitor starts without includePattern, excludePattern, or notifyPattern
       - No hidden default notify regex is added
-      - Subscribed delivery remains unfiltered until notifyPattern is explicitly set
+      - With delivery=important, live delivery stays quiet until notifyPattern is explicitly set
 
   - id: E004
     category: command-loop
@@ -118,7 +118,7 @@ cases:
       Start with full live delivery, then once you know the stream shape switch it
       to important-only with a notify pattern.
     pass_conditions:
-      - Initial subscription is effectively unfiltered
+      - Initial subscription does not surface live updates until a notifyPattern exists
       - Later state introduces notifyPattern
       - Delivery mode becomes meaningfully selective only after the pattern exists
 

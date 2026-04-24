@@ -222,7 +222,7 @@ Use `managedBy="model"` on a temporary monitor so the agent can adjust `includeP
    - `delivery="all"` pushes every accepted line
    - `delivery="important"` pushes only lines that match `notifyPattern`
 
-There is no hidden default classifier fallback. If you have not set `notifyPattern`, subscribed updates are not filtered by default.
+There is no hidden default classifier fallback. If you have not set `notifyPattern`, `delivery="important"` does not send live updates until you add one, even though accepted lines still land in channel history.
 
 Delivery is triggered directly from monitor output handling with `session.send()`. It does not wait for `user.message` or `assistant.message` transcript events.
 

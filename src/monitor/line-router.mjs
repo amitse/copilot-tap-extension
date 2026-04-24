@@ -30,7 +30,7 @@ export function createLineRouter({ channels, notifications }) {
       return monitor.classifier.notifyRegex.test(line);
     }
 
-    return true;
+    return false;
   }
 
   function appendSystemMessage(monitor, text, notify = false) {
