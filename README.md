@@ -12,11 +12,11 @@ Single-file entry point. No runtime dependencies beyond the Copilot SDK.
 
 ## Who is this for?
 
-- You tail deploy logs and want failures injected into your session while you keep coding.
-- You maintain a repo and want PR reviews, CI failures, and new issues surfaced without checking manually.
+- You tail logs and want failures injected into your session while you keep coding.
+- You maintain a repo and want PR reviews, CI failures, or new issues surfaced automatically.
 - You run long builds and want to know when they finish or break -- without watching.
-- You poll an API or dashboard and want the agent to tell you when something changes.
-- You re-ask the same prompt every few minutes and want it on a timer instead.
+- You poll an API or dashboard and want the agent to react when something changes.
+- You re-ask the same prompt periodically and want it on a timer or running whenever idle.
 
 ## Get started
 
