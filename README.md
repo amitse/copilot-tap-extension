@@ -8,7 +8,7 @@ Copilot CLI already runs background tasks, but their output sits idle until you 
 
 Background commands and agent prompts produce output line by line. An EventFilter decides what to drop, what to store, and what to push into your session. Important events arrive without you asking.
 
-Single-file extension. Zero dependencies.
+Single-file entry point. No runtime dependencies beyond the Copilot SDK.
 
 ## Who is this for?
 
@@ -39,23 +39,27 @@ The example config includes a demo heartbeat emitter that starts automatically, 
 
 ## How it works
 
-An **emitter** is a background process attached to your session. There are two kinds:
+An **EventEmitter** is a background worker attached to your session. There are two kinds:
 
-- A **CommandEmitter** runs a shell command and captures its stdout line by line.
-- A **PromptEmitter** runs an agent prompt, optionally on a recurring interval.
+- A **CommandEmitter** runs a shell command and captures stdout line by line.
+- A **PromptEmitter** runs an agent prompt -- once, or on a recurring interval.
 
-Each emitter has an **EventFilter** -- an ordered list of regex rules that decides what happens to each line of output. First match wins:
+Each emitter writes to an **EventStream**, an in-memory log of accepted output. The stream is created automatically and shares the emitter's name.
+
+For CommandEmitters, an **EventFilter** decides what happens to each line. It is an ordered list of regex rules -- first match wins:
 
 | Outcome | What happens |
 | --- | --- |
-| **drop** | Discarded. Never stored. |
-| **keep** | Stored in the event stream for later review. |
+| **drop** | Discarded. Never enters the stream. |
+| **keep** | Stored in the EventStream for later review. |
 | **surface** | Stored and shown in the session timeline. |
 | **inject** | Stored, shown, and pushed into your conversation. |
 
-CommandEmitter output goes through the filter. PromptEmitter output always injects directly.
+PromptEmitter output bypasses the filter and always injects.
 
-Filters are hot-swappable while the emitter runs. You control who can change them: `ownership="modelOwned"` lets the agent tune rules on its own, while `ownership="userOwned"` locks them to your exact specification.
+A **SessionInjector** controls whether stream updates are pushed into your session proactively. Enable it when you want important events to arrive as they happen.
+
+Filters are hot-swappable while the emitter runs. `ownership="modelOwned"` lets the agent tune rules; `ownership="userOwned"` locks them to your specification.
 
 ## Three things you can do
 
