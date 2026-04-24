@@ -1,0 +1,48 @@
+{
+  "streams": [
+    {
+      "name": "ops",
+      "description": "Operational events from background emitters",
+      "sessionInjector": {
+        "enabled": true,
+        "delivery": "surface",
+        "ownership": "userOwned"
+      }
+    },
+    {
+      "name": "repo-maintenance",
+      "description": "Prompt-based maintenance loop",
+      "sessionInjector": {
+        "enabled": true,
+        "delivery": "surface",
+        "ownership": "userOwned"
+      }
+    }
+  ],
+  "emitters": [
+    {
+      "name": "heartbeat",
+      "description": "Demo background status stream",
+      "command": "node ./examples/heartbeat.mjs",
+      "stream": "ops",
+      "autoStart": true,
+      "includeStderr": true,
+      "ownership": "userOwned",
+      "eventFilter": [
+        { "match": "booting", "outcome": "drop" },
+        { "match": "ready|healthy", "outcome": "surface" },
+        { "match": "warning|error", "outcome": "inject" },
+        { "match": ".*", "outcome": "keep" }
+      ]
+    },
+    {
+      "name": "repo-maintenance",
+      "description": "Prompt-based loop for repo health checks",
+      "prompt": "Check whether there are new failing runs, PR review comments, or issue escalations worth addressing. Summarize only actionable changes.",
+      "runInterval": "15m",
+      "stream": "repo-maintenance",
+      "autoStart": false,
+      "ownership": "userOwned"
+    }
+  ]
+}

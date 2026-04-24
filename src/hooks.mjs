@@ -1,31 +1,31 @@
-import { COPILOT_INSTRUCTIONS_PATH, DEFAULT_CHANNEL, DEFAULT_CHANNEL_DESCRIPTION, MANAGED_BY, SCOPE } from "./consts.mjs";
+import { COPILOT_INSTRUCTIONS_PATH, DEFAULT_STREAM, DEFAULT_STREAM_DESCRIPTION, OWNERSHIP, LIFESPAN } from "./consts.mjs";
 
-function subscriptionSummary(channels) {
-  const subscribed = channels.list().filter((channel) => channel.subscription.enabled);
+function sessionInjectorSummary(streams) {
+  const subscribed = streams.list().filter((stream) => stream.sessionInjector.enabled);
 
   if (subscribed.length === 0) {
     return "";
   }
 
   return [
-    "Subscribed channels:",
+    "Session injectors:",
     ...subscribed.map(
-      (channel) =>
-        `- ${channel.name} delivery=${channel.subscription.delivery} scope=${channel.subscription.scope} managedBy=${channel.subscription.managedBy}`
+      (stream) =>
+        `- ${stream.name} delivery=${stream.sessionInjector.delivery} lifespan=${stream.sessionInjector.lifespan} ownership=${stream.sessionInjector.ownership}`
     )
   ].join("\n");
 }
 
-async function applyPersistentConfig({ baseCwd, channels, configStore, supervisor, sessionPort, setBaseCwd }) {
+async function applyPersistentConfig({ baseCwd, streams, configStore, supervisor, sessionPort, setBaseCwd }) {
   setBaseCwd(baseCwd);
   const configLoad = configStore.load(baseCwd);
 
-  for (const entry of configStore.getChannels()) {
-    channels.applyPersistentChannel(entry);
+  for (const entry of configStore.getStreams()) {
+    streams.applyPersistentStream(entry);
   }
 
   let started = 0;
-  for (const entry of configStore.getMonitors()) {
+  for (const entry of configStore.getEmitters()) {
     if (entry.autoStart === false) {
       continue;
     }
@@ -34,40 +34,40 @@ async function applyPersistentConfig({ baseCwd, channels, configStore, superviso
       await supervisor.start(
         {
           ...entry,
-          scope: SCOPE.PERSISTENT,
-          managedBy: entry.managedBy ?? MANAGED_BY.USER
+          scope: LIFESPAN.PERSISTENT,
+          managedBy: entry.ownership ?? OWNERSHIP.USER_OWNED
         },
         {
           baseCwd,
-          scope: SCOPE.PERSISTENT,
-          managedBy: entry.managedBy ?? MANAGED_BY.USER,
+          scope: LIFESPAN.PERSISTENT,
+          managedBy: entry.ownership ?? OWNERSHIP.USER_OWNED,
           subscribe: false,
           force: true
         }
       );
       started += 1;
     } catch (error) {
-      await sessionPort.log(`Failed to auto-start monitor '${entry.name}': ${error.message}`, {
+      await sessionPort.log(`Failed to auto-start emitter '${entry.name}': ${error.message}`, {
         level: "warning"
       });
     }
   }
 
   return configLoad.found
-    ? `Loaded ${configStore.getChannels().length} channels and ${configStore.getMonitors().length} persistent monitor definitions from ${configLoad.filePath}. Auto-started ${started}.`
+    ? `Loaded ${configStore.getStreams().length} event streams and ${configStore.getEmitters().length} persistent emitter definitions from ${configLoad.filePath}. Auto-started ${started}.`
     : "No copilot-channels config file found.";
 }
 
-export function createHooks({ channels, configStore, supervisor, sessionPort, setBaseCwd }) {
+export function createHooks({ streams, configStore, supervisor, sessionPort, setBaseCwd }) {
   return {
     onSessionStart: async (input) => {
-      channels.ensure(DEFAULT_CHANNEL, DEFAULT_CHANNEL_DESCRIPTION);
+      streams.ensure(DEFAULT_STREAM, DEFAULT_STREAM_DESCRIPTION);
 
       let configSummary = "No config loaded.";
       try {
         configSummary = await applyPersistentConfig({
           baseCwd: input.cwd,
-          channels,
+          streams,
           configStore,
           supervisor,
           sessionPort,
@@ -82,11 +82,11 @@ export function createHooks({ channels, configStore, supervisor, sessionPort, se
       return {
         additionalContext: [
           "copilot-channels-extension is active.",
-          "Use channel subscriptions when you want ongoing attention on a stream; use monitors to collect background output; use prompt-based work items and loops when the right action is to re-run a prompt or command over time; use classifiers to decide what reaches the stream and what triggers delivery.",
-          "Subscribed channel updates are sent immediately from monitor output and do not wait for transcript events.",
+          "Use event emitters to run background commands or prompts; use event filters to control which events are kept, surfaced, or injected; use session injectors when you want events surfaced or injected into the session.",
+          "Session injector updates are sent immediately from emitter output and do not wait for transcript events.",
           `Repo guidance is available at ${COPILOT_INSTRUCTIONS_PATH} if you want to read the project-specific instructions.`,
           configSummary,
-          subscriptionSummary(channels)
+          sessionInjectorSummary(streams)
         ]
           .filter(Boolean)
           .join("\n")
@@ -94,7 +94,7 @@ export function createHooks({ channels, configStore, supervisor, sessionPort, se
     },
 
     onUserPromptSubmitted: async () => {
-      const summary = subscriptionSummary(channels);
+      const summary = sessionInjectorSummary(streams);
       if (!summary) {
         return undefined;
       }
@@ -104,8 +104,8 @@ export function createHooks({ channels, configStore, supervisor, sessionPort, se
     onSessionEnd: async () => {
       await supervisor.stopAll();
       return {
-        sessionSummary: `copilot-channels-extension tracked ${channels.size()} channels and ${configStore.getMonitors().length} persistent monitor definitions.`,
-        cleanupActions: ["Stopped session monitors managed by copilot-channels-extension."]
+        sessionSummary: `copilot-channels-extension tracked ${streams.size()} event streams and ${configStore.getEmitters().length} persistent emitter definitions.`,
+        cleanupActions: ["Stopped session emitters managed by copilot-channels-extension."]
       };
     }
   };
