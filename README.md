@@ -125,14 +125,24 @@ Copilot CLI already supports background tasks. This extension layers on filterin
 
 ```text
 .github/
-  extensions/tap/extension.mjs  # the extension entry point
-  skills/loop/                  # /loop skill for scheduled prompts
-  copilot-instructions.md       # agent guidance
-src/                            # runtime: emitters, streams, filters, tools
+  extensions/tap/extension.mjs  # extension entry point (loads the runtime)
+  skills/loop/                  # /loop skill for scheduled and idle prompts
+  copilot-instructions.md       # agent guidance for using this extension
+src/
+  emitter/                      # supervisor, lifecycle, spawn, line router
+  streams/                      # EventStream store and notification dispatcher
+  tools/                        # tool definitions (emitters, streams, filters)
+  config/                       # persistent config store (tap.config.json)
+  format/                       # display formatters for emitters and streams
+  session/                      # session port abstraction
+  util/                         # normalization, text, time, path helpers
+  hooks.mjs                     # session lifecycle hooks
+  tap-runtime.mjs               # runtime factory (wires everything together)
 examples/heartbeat.mjs          # demo CommandEmitter
 evals/                          # eval harness and test cases
 docs/                           # reference, use cases, evals docs
-tap.config.example.json         # starter config
+tap.config.example.json         # starter config (copy to tap.config.json)
+PLAN.md                         # ubiquitous language and design decisions
 ```
 
 ## Further reading
