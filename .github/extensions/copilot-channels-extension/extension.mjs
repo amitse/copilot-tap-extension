@@ -1448,6 +1448,7 @@ session = await joinSession({
           "copilot-channels-extension is active.",
           "Use channel subscriptions when you want ongoing attention on a stream; use monitors to collect background output; use prompt-based work items and loops when the right action is to re-run a prompt or command over time; use classifiers to decide what reaches the stream and what triggers delivery.",
           "Subscribed channel updates are sent immediately from monitor output and do not wait for transcript events.",
+          "Repo guidance is available at .github/copilot-instructions.md if you want to read the project-specific instructions.",
           configSummary,
           subscriptionSummary()
         ]
