@@ -1,14 +1,12 @@
 # copilot-tap-extension
 
-Filtered background streams for Copilot CLI.
+Background event filtering and injection for Copilot CLI.
 
 ---
 
 Copilot CLI already runs background tasks, but their output sits idle until you check it. This extension adds **filtering and auto-injection** on top of that capability.
 
 Background commands and agent prompts produce output line by line. An EventFilter decides what to drop, what to store, and what to push into your session. Important events arrive without you asking.
-
-Single-file entry point. No runtime dependencies beyond the Copilot SDK.
 
 ## Who is this for?
 
