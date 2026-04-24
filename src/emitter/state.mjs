@@ -37,11 +37,22 @@ export function buildEmitterState(spec, baseCwd, defaults = {}) {
     lifespan
   );
   const emitterType = prompt ? EMITTER_TYPE.PROMPT : EMITTER_TYPE.COMMAND;
-  const runSchedule = interval
-    ? RUN_SCHEDULE.TIMED
-    : prompt
-      ? RUN_SCHEDULE.ONE_TIME
-      : RUN_SCHEDULE.CONTINUOUS;
+
+  let runSchedule;
+  if (interval?.idle) {
+    if (!prompt) {
+      throw new Error(`Emitter '${name}': every='idle' is only valid for prompt emitters, not command emitters.`);
+    }
+    runSchedule = RUN_SCHEDULE.IDLE;
+  } else if (interval) {
+    runSchedule = RUN_SCHEDULE.TIMED;
+  } else if (prompt) {
+    runSchedule = RUN_SCHEDULE.ONE_TIME;
+  } else {
+    runSchedule = RUN_SCHEDULE.CONTINUOUS;
+  }
+
+  const maxRuns = spec.maxRuns != null ? Math.max(1, Math.floor(Number(spec.maxRuns))) : null;
 
   return {
     name,
@@ -60,6 +71,7 @@ export function buildEmitterState(spec, baseCwd, defaults = {}) {
     lifespan,
     ownership,
     eventFilter,
+    maxRuns,
     startedAt: nowIso(),
     stoppedAt: null,
     lineCount: 0,

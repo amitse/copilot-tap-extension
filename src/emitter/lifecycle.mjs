@@ -1,6 +1,8 @@
 import {
   EMITTER_STATUS,
   EMITTER_TYPE,
+  IDLE_PROMPT_BACKOFF_MS,
+  IDLE_PROMPT_DELAY_MS,
   RUN_SCHEDULE,
   RUN_STATUS,
   SOURCE,
@@ -120,6 +122,11 @@ export function createLifecycle({ lineRouter, sessionPort }) {
   async function runPromptIteration(emitter) {
     try {
       const response = await sessionPort.sendAndWait(emitter.prompt);
+
+      if (emitter.stopRequested) {
+        return { ok: true };
+      }
+
       const responseText = toText(response?.data?.content ?? response?.data ?? response);
 
       if (responseText.trim()) {
@@ -137,7 +144,7 @@ export function createLifecycle({ lineRouter, sessionPort }) {
         ok: false,
         error: error.message,
         deferred:
-          emitter.runSchedule === RUN_SCHEDULE.TIMED &&
+          (emitter.runSchedule === RUN_SCHEDULE.TIMED || emitter.runSchedule === RUN_SCHEDULE.IDLE) &&
           /\bsession\.idle\b/i.test(String(error?.message ?? ""))
       };
     }
@@ -195,18 +202,36 @@ export function createLifecycle({ lineRouter, sessionPort }) {
         return;
       }
 
+      if (emitter.maxRuns && emitter.runCount >= emitter.maxRuns) {
+        emitter.status = EMITTER_STATUS.COMPLETED;
+        emitter.stoppedAt = nowIso();
+        lineRouter.appendSystemMessage(
+          emitter,
+          `Emitter '${emitter.name}' completed ${emitter.runCount} of ${emitter.maxRuns} runs.`
+        );
+        return;
+      }
+
       emitter.status = EMITTER_STATUS.WAITING;
-      scheduleIteration(emitter, emitter.everyMs);
+      const delay = emitter.runSchedule === RUN_SCHEDULE.IDLE
+        ? IDLE_PROMPT_DELAY_MS
+        : emitter.everyMs;
+      scheduleIteration(emitter, delay);
       return;
     }
 
     if (result.deferred) {
       emitter.status = EMITTER_STATUS.WAITING;
-      lineRouter.appendSystemMessage(
-        emitter,
-        `Emitter '${emitter.name}' deferred this prompt run because the session was still busy. Next attempt in ${emitter.every}.`
-      );
-      scheduleIteration(emitter, emitter.everyMs);
+      const retryDelay = emitter.runSchedule === RUN_SCHEDULE.IDLE
+        ? IDLE_PROMPT_BACKOFF_MS
+        : emitter.everyMs;
+      if (emitter.runSchedule !== RUN_SCHEDULE.IDLE) {
+        lineRouter.appendSystemMessage(
+          emitter,
+          `Emitter '${emitter.name}' deferred this prompt run because the session was still busy. Next attempt in ${emitter.every}.`
+        );
+      }
+      scheduleIteration(emitter, retryDelay);
       return;
     }
 
@@ -228,13 +253,18 @@ export function createLifecycle({ lineRouter, sessionPort }) {
     }
 
     emitter.status = EMITTER_STATUS.WAITING;
-    scheduleIteration(emitter, emitter.everyMs);
+    const failRetryDelay = emitter.runSchedule === RUN_SCHEDULE.IDLE
+      ? IDLE_PROMPT_BACKOFF_MS
+      : emitter.everyMs;
+    scheduleIteration(emitter, failRetryDelay);
   }
 
   function startScheduled(emitter) {
     const scheduleLabel = emitter.runSchedule === RUN_SCHEDULE.TIMED
       ? `every ${emitter.every}`
-      : RUN_SCHEDULE.ONE_TIME;
+      : emitter.runSchedule === RUN_SCHEDULE.IDLE
+        ? "when idle"
+        : RUN_SCHEDULE.ONE_TIME;
     const initialDelayMs = 0;
     const firstRunLabel = "";
     lineRouter.appendSystemMessage(

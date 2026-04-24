@@ -44,8 +44,12 @@ export const EMITTER_TYPE = Object.freeze({
 export const RUN_SCHEDULE = Object.freeze({
   CONTINUOUS: "continuous",
   TIMED: "timed",
-  ONE_TIME: "oneTime"
+  ONE_TIME: "oneTime",
+  IDLE: "idle"
 });
+
+export const IDLE_PROMPT_DELAY_MS = 2000;
+export const IDLE_PROMPT_BACKOFF_MS = 5000;
 
 export const EMITTER_STATUS = Object.freeze({
   QUEUED: "queued",

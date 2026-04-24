@@ -1,20 +1,20 @@
 ---
 name: loop
 description: "Create a prompt-based scheduled loop with copilot-channels-extension. Use for requests like '/loop 5m check the deploy' or any ask to run a prompt on a recurring interval."
-argument-hint: "<interval> <prompt>"
+argument-hint: "<interval|idle> <prompt>"
 user-invocable: true
 ---
 
-Create a timed PromptEmitter with `tap_start_emitter`.
+Create a timed or idle PromptEmitter with `tap_start_emitter`.
 
 ## Expected input
 
 Interpret the invocation as:
 
-1. The first argument is the repeat interval, using values like `30s`, `5m`, `2h`, or `1d`.
+1. The first argument is the repeat interval, using values like `30s`, `5m`, `2h`, `1d`, or `idle`.
 2. The rest of the input is the prompt that should be re-run on that schedule.
 
-Example:
+Example (timed):
 
 ```text
 /loop 5m check the deploy
@@ -25,7 +25,24 @@ means:
 - `runInterval = "5m"`
 - `prompt = "check the deploy"`
 
-The emitter runs on a timed schedule. The first run fires immediately, then repeats on the interval.
+Example (idle):
+
+```text
+/loop idle check the deploy
+```
+
+means:
+
+- `every = "idle"` (re-runs whenever the session is idle)
+- `prompt = "check the deploy"`
+
+Timed emitters fire immediately, then repeat on the interval. Idle emitters fire immediately, then re-fire whenever the session becomes idle again (with a short delay between runs to avoid monopolizing the session).
+
+## Max iterations
+
+When the interval is `idle`, always ask the user for a max iteration count or default to a reasonable number (e.g. 10). Pass it as `maxRuns` to `tap_start_emitter`. This prevents runaway idle loops.
+
+For timed intervals, `maxRuns` is optional. Only set it if the user explicitly requests a limit.
 
 ## Required behavior
 

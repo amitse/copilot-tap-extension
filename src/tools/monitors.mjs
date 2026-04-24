@@ -44,7 +44,7 @@ export function createEmitterTools({ streams, configStore, supervisor, getBaseCw
           description: { type: "string", description: "Short summary." },
           channel: { type: "string", description: "EventStream to receive accepted events." },
           cwd: { type: "string", description: "Optional working directory relative to the session cwd." },
-          every: { type: "string", description: "Optional repeat interval like 30s, 5m, 2h, or 1d. When omitted, commands run continuously and prompts run once." },
+          every: { type: "string", description: "Optional repeat interval like 30s, 5m, 2h, or 1d. Use 'idle' for prompts that re-run whenever the session is idle. When omitted, commands run continuously and prompts run once." },
           scope: { type: "string", description: "Use 'temporary' for session-only or 'persistent' to write config." },
           managedBy: { type: "string", description: "Ownership label: 'userOwned' or 'modelOwned'." },
           autoStart: { type: "boolean", description: "When persistent, whether the emitter should auto-start next session." },
@@ -54,6 +54,7 @@ export function createEmitterTools({ streams, configStore, supervisor, getBaseCw
           notifyPattern: { type: "string", description: "Matching lines trigger session injection when delivery='important'. (Legacy: prefer eventFilter rules.)" },
           subscribe: { type: "boolean", description: "Whether to attach a session injector to the stream as part of emitter creation." },
           delivery: { type: "string", description: "Session injector event outcome mode: 'important' or 'all'." },
+          maxRuns: { type: "integer", description: "Maximum number of iterations before the emitter auto-completes. Useful for idle and timed loops." },
           force: { type: "boolean", description: "Required only when transferring ownership of a protected emitter." }
         },
         required: ["name"]
@@ -75,14 +76,15 @@ export function createEmitterTools({ streams, configStore, supervisor, getBaseCw
 
         return [
           `Started emitter '${emitter.name}'.`,
-          `lifespan=${emitter.scope}`,
-          `ownership=${emitter.managedBy}`,
-          `emitterType=${emitter.workType}`,
-          `runSchedule=${emitter.executionMode}`,
+          `lifespan=${emitter.lifespan}`,
+          `ownership=${emitter.ownership}`,
+          `emitterType=${emitter.emitterType}`,
+          `runSchedule=${emitter.runSchedule}`,
           emitter.every ? `every=${emitter.every}` : null,
-          `stream=${emitter.channel}`,
-          `sessionInjector=${streams.ensure(emitter.channel).sessionInjector.enabled ? "on" : "off"}`,
-          `eventFilter=${formatEventFilter(emitter.classifier)}`
+          emitter.maxRuns ? `maxRuns=${emitter.maxRuns}` : null,
+          `stream=${emitter.stream}`,
+          `sessionInjector=${streams.ensure(emitter.stream).sessionInjector.enabled ? "on" : "off"}`,
+          `eventFilter=${formatEventFilter(emitter.eventFilter)}`
         ]
           .filter(Boolean)
           .join("\n");
@@ -105,13 +107,13 @@ export function createEmitterTools({ streams, configStore, supervisor, getBaseCw
         required: ["name"]
       },
       handler: async (args) => {
-        const result = supervisor.updateClassifier(args.name, args, {
+        const result = supervisor.updateEventFilter(args.name, args, {
           scope: args.scope ?? LIFESPAN.TEMPORARY,
           managedBy: args.managedBy ?? OWNERSHIP.MODEL_OWNED,
           force: args.force === true
         });
 
-        const eventFilter = result.classifier ?? supervisor.get(args.name)?.classifier;
+        const eventFilter = result.eventFilter ?? supervisor.get(args.name)?.eventFilter;
         return `Updated event filter for emitter '${normalizeName(args.name)}': ${formatEventFilter(eventFilter)}`;
       }
     },

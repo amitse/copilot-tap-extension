@@ -9,6 +9,11 @@ export function parseLoopInterval(value) {
     return null;
   }
 
+  const trimmed = String(value).trim().toLowerCase();
+  if (trimmed === "idle") {
+    return { text: "idle", ms: 0, idle: true };
+  }
+
   const match = String(value).trim().match(RUN_INTERVAL_PATTERN);
   if (!match) {
     throw new Error(`Invalid every interval '${value}'. Use values like 30s, 5m, 2h, or 1d.`);

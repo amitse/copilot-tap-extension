@@ -24,6 +24,7 @@ export function formatRunningEmitter(emitter, stream) {
     `  cwd=${emitter.cwd}`,
     `  ${describeEmitterWork(emitter)}`,
     emitter.every ? `  every=${emitter.every}` : null,
+    emitter.maxRuns ? `  maxRuns=${emitter.maxRuns}` : null,
     `  autoStart=${emitter.autoStart}`,
     `  includeStderr=${emitter.includeStderr}`,
     `  runs=${emitter.runCount}`,
@@ -50,7 +51,7 @@ export function formatConfiguredEmitter(entry) {
   const every = entry.every ? `  every=${entry.every}` : null;
   const emitterType = entry.prompt ? EMITTER_TYPE.PROMPT : EMITTER_TYPE.COMMAND;
   const runSchedule = entry.every
-    ? RUN_SCHEDULE.TIMED
+    ? (entry.every === "idle" && entry.prompt ? RUN_SCHEDULE.IDLE : RUN_SCHEDULE.TIMED)
     : entry.prompt
       ? RUN_SCHEDULE.ONE_TIME
       : RUN_SCHEDULE.CONTINUOUS;
