@@ -48,6 +48,21 @@ When this skill is invoked:
    - scheduled prompt
 8. After confirming the emitter, stop there. Do not immediately inspect EventStream history or react to background emitter output unless the user explicitly asks for that follow-up.
 
+## Why subscribe defaults to false
+
+PromptEmitter output is already delivered through two paths:
+
+1. **`session.sendAndWait()`** -- the prompt runs inside the session, so Copilot processes and responds to it directly.
+2. **Notification dispatcher** -- each result line is also enqueued via `handlePromptResult` and injected as a background event stream update via `session.send()`.
+
+The `subscribe` flag controls a third layer: the **SessionInjector**. When enabled, it additionally pushes system-level messages (emitter started, stopped, errored) into the session.
+
+For PromptEmitters, the main results already reach the session without the SessionInjector. Setting `subscribe = true` adds system noise on top of content that is already being delivered. Default to `false` to keep things clean.
+
+For **CommandEmitters**, the SessionInjector matters more because it is the mechanism that delivers inject-outcome lines proactively. But even there, the notification dispatcher in the line router already handles inject outcomes directly.
+
+In short: `subscribe` is about system messages and extra delivery, not about whether the user sees prompt results.
+
 ## If the input is incomplete
 
 If the interval or prompt body is missing, ask the user for the missing piece instead of guessing.
