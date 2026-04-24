@@ -56,13 +56,15 @@ On Windows, replace `cp` with `copy`. The config file is required -- it tells th
 
 This runs the heartbeat script on session start, drops boot messages, injects warnings and errors, and keeps everything else in the stream.
 
-Once inside the session, try a natural-language request:
+Once inside the session, describe what you want in natural language. You can also use `/loop` to set up scheduled prompts directly:
 
 > _"Watch my build logs and tell me if anything fails"_
 
 > _"/loop 5m check for new PR review comments"_
 
 > _"Tail the API logs, inject errors, drop health checks"_
+
+The agent translates these into emitter and filter configurations behind the scenes.
 
 ## How it works
 
