@@ -66,6 +66,10 @@ A **SessionInjector** controls whether stream updates are pushed into your sessi
 
 Filters are hot-swappable while the emitter runs. `ownership="modelOwned"` lets the agent tune rules; `ownership="userOwned"` locks them to your specification.
 
+Emitters are **temporary** by default and last only for the current session. Set `lifespan="persistent"` to save an emitter to config and restore it next session.
+
+Run schedules control timing: **continuous** (command runs until stopped), **timed** (repeats on an interval), **oneTime** (runs once), or **idle** (prompt re-runs when the session has nothing else to do).
+
 ## What you can do
 
 **Watch something in the background**
@@ -153,7 +157,7 @@ PLAN.md                         # ubiquitous language and design decisions
 | [Use cases and patterns](./docs/use-cases.md) | Workflow recipes: deploy watchers, PR monitors, log tailers |
 | [Evals](./docs/evals.md) | Smoke tests and the interactive eval runner |
 | [Copilot instructions](./.github/copilot-instructions.md) | Guidance the agent follows when using this extension |
-| [Implementation plan](./PLAN.md) | Design decisions and current roadmap |
+| [Implementation plan](./PLAN.md) | Ubiquitous language, design decisions, and naming conventions |
 
 ## Contributing
 
