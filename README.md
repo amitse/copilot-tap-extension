@@ -157,7 +157,7 @@ PLAN.md                         # ubiquitous language and design decisions
 
 ## Contributing
 
-The extension entry point is a single `.mjs` file; the runtime lives in `src/`. Before opening a PR, run the local checks:
+Before opening a PR, run the local checks:
 
 ```bash
 npm run check              # syntax check
@@ -165,4 +165,6 @@ npm run evals:smoke        # smoke test
 npm run evals:validate-modes  # interactive vs prompt-mode gap
 ```
 
-See the [reference](./docs/reference.md) for the full API and config schema, and the [use cases](./docs/use-cases.md) for workflow patterns.
+The runtime has no production dependencies. Dev dependencies (`@github/copilot-sdk`, `yaml`) are used for the eval harness and extension loading.
+
+If you add a new tool or change the event pipeline, update the [reference](./docs/reference.md). If you add a new workflow pattern, add it to [use cases](./docs/use-cases.md).
