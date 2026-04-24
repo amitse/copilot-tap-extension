@@ -8,6 +8,13 @@ Copilot CLI already runs background tasks, but their output sits idle until you 
 
 Background commands and agent prompts produce output line by line. An EventFilter decides what to drop, what to store, and what to push into your session. Important events arrive without you asking.
 
+| Without this extension | With it |
+| --- | --- |
+| You check background output manually | Important lines are pushed into your conversation |
+| No way to filter noisy output | Rules drop noise, keep context, inject signal |
+| No scheduled prompt re-runs | Prompts repeat on a timer or fire when idle |
+| Output stays in the background task | Matched events arrive in your session as they happen |
+
 ## Who is this for?
 
 - You tail logs and want failures injected into your session while you keep coding.
@@ -130,17 +137,6 @@ The recommended approach is a **keep-all bootstrap**: start with no EventFilter 
 ```
 
 Rules can be added or changed while the emitter is running. You never need to restart it to adjust filtering.
-
-## What the extension adds
-
-Copilot CLI already supports background tasks. This extension layers on filtering, scheduling, and proactive delivery:
-
-| Built-in behavior | With the extension |
-| --- | --- |
-| Task output requires manual checking | EventFilter classifies each line; important events inject automatically |
-| No line-level filtering | Rules drop noise, keep context, surface or inject signal |
-| No scheduled prompt re-runs | PromptEmitters repeat on a timer or fire when idle |
-| Output stays in the task | A SessionInjector pushes matched events into your conversation |
 
 ## Repo layout
 
