@@ -57,7 +57,7 @@ Use a **prompt** when the work is mainly reasoning, summarization, or maintenanc
 - "look for new urgent issues or failing runs and summarize what changed"
 - "run a maintenance pass on the current branch"
 
-Use `every` when either of those should repeat on a session-scoped interval.
+Use `every` when either of those should repeat on a session-scoped interval. Prompt loops begin on their first interval instead of firing immediately, which avoids colliding with the active session turn that created them.
 
 ## Pattern library
 

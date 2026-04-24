@@ -133,7 +133,13 @@ export function createLifecycle({ lineRouter, sessionPort }) {
 
       return { ok: true };
     } catch (error) {
-      return { ok: false, error: error.message };
+      return {
+        ok: false,
+        error: error.message,
+        deferred:
+          monitor.executionMode === EXECUTION_MODE.LOOP &&
+          /\bsession\.idle\b/i.test(String(error?.message ?? ""))
+      };
     }
   }
 
@@ -194,7 +200,17 @@ export function createLifecycle({ lineRouter, sessionPort }) {
       return;
     }
 
-      monitor.lastRunStatus = RUN_STATUS.FAILURE;
+    if (result.deferred) {
+      monitor.status = MONITOR_STATUS.WAITING;
+      lineRouter.appendSystemMessage(
+        monitor,
+        `Monitor '${monitor.name}' deferred this prompt run because the session was still busy. Next attempt in ${monitor.every}.`
+      );
+      scheduleIteration(monitor, monitor.everyMs);
+      return;
+    }
+
+    monitor.lastRunStatus = RUN_STATUS.FAILURE;
     lineRouter.appendSystemMessage(
       monitor,
       `Monitor '${monitor.name}' iteration failed: ${result.error ?? "unknown error"}.`,
@@ -219,11 +235,19 @@ export function createLifecycle({ lineRouter, sessionPort }) {
     const scheduleLabel = monitor.executionMode === EXECUTION_MODE.LOOP
       ? `every ${monitor.every}`
       : EXECUTION_MODE.ONCE;
+    const initialDelayMs =
+      monitor.executionMode === EXECUTION_MODE.LOOP && monitor.workType === WORK_TYPE.PROMPT
+        ? monitor.everyMs
+        : 0;
+    const firstRunLabel =
+      monitor.executionMode === EXECUTION_MODE.LOOP && monitor.workType === WORK_TYPE.PROMPT
+        ? ` First run in ${monitor.every}.`
+        : "";
     lineRouter.appendSystemMessage(
       monitor,
-      `Monitor '${monitor.name}' queued ${monitor.workType} work (${scheduleLabel}) with ${describeMonitorWork(monitor)}.`
+      `Monitor '${monitor.name}' queued ${monitor.workType} work (${scheduleLabel}) with ${describeMonitorWork(monitor)}.${firstRunLabel}`
     );
-    scheduleIteration(monitor, 0);
+    scheduleIteration(monitor, initialDelayMs);
   }
 
   function start(monitor) {

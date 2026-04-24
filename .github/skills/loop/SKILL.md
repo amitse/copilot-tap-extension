@@ -25,6 +25,8 @@ means:
 - `every = "5m"`
 - `prompt = "check the deploy"`
 
+The loop is scheduled on that interval. For prompt-based loops, the first run happens after the first interval rather than immediately.
+
 ## Required behavior
 
 When this skill is invoked:

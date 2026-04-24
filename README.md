@@ -106,9 +106,10 @@ This extension now supports a lightweight, session-scoped loop model inspired by
 
 - use `every: "5m"` or similar to re-run work on an interval
 - commands with `every` re-run after each completion
-- prompts with `every` re-send the prompt after each completion
+- looped prompts wait for the first interval before their first run, then re-send the prompt after each completion
 - prompts without `every` run once
 - loops are tied to the session and do not try to catch up missed runs
+- if a scheduled prompt loop fires while the current session is still busy, that run is deferred to the next interval instead of failing the monitor
 - persistent config makes a loop come back on the next session start, but this is still not a durable cloud scheduler
 
 This repo also ships a **`loop` skill** under `.github/skills/loop` for skill-aware sessions. Use it when you want a fast scheduled prompt setup such as:
@@ -117,7 +118,7 @@ This repo also ships a **`loop` skill** under `.github/skills/loop` for skill-aw
 /loop 5m check the deploy
 ```
 
-The skill tells Copilot to create a prompt-based looping monitor with `copilot_channels_start_monitor`, defaulting to a temporary loop and only subscribing the channel when you explicitly ask to be kept posted.
+The skill tells Copilot to create a prompt-based looping monitor with `copilot_channels_start_monitor`, defaulting to a temporary loop and only subscribing the channel when you explicitly ask to be kept posted. Prompt loops start on their first interval rather than firing immediately.
 
 ## Example config
 
