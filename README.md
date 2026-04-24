@@ -16,16 +16,16 @@ Single-file extension. Zero dependencies.
 - You poll an API or dashboard and want the agent to tell you when something changes.
 - You re-ask the same prompt every few minutes and want it on a timer instead.
 
-## Get started in 60 seconds
+## Get started
 
 ```bash
 git clone https://github.com/amitse/copilot-tap-extension
 cd copilot-tap-extension
-cp tap.config.example.json tap.config.json
+cp tap.config.example.json tap.config.json   # Windows: copy tap.config.example.json tap.config.json
 copilot
 ```
 
-Then say any of these:
+Once inside the session, try a natural-language request:
 
 > _"Watch my build logs and tell me if anything fails"_
 
@@ -33,7 +33,7 @@ Then say any of these:
 
 > _"Tail the API logs, inject errors, drop health checks"_
 
-The example config auto-starts a demo heartbeat emitter so you see it working immediately.
+The example config includes a demo heartbeat emitter that starts automatically, so you can see events flowing before you set up your own.
 
 ## How it works
 
