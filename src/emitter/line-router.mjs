@@ -61,5 +61,29 @@ export function createLineRouter({ streams, notifications, sessionPort }) {
     }
   }
 
-  return { handleLine, handleTextBlock, appendSystemMessage };
+  function handlePromptResult(emitter, value) {
+    for (const line of splitTextLines(value)) {
+      const text = String(line ?? "").trim();
+      if (!text) {
+        continue;
+      }
+
+      emitter.lineCount += 1;
+      streams.append(emitter.stream, {
+        source: SOURCE.EMITTER_PROMPT,
+        text,
+        monitorName: emitter.name,
+        stream: STREAM.PROMPT
+      });
+
+      notifications.enqueue({
+        channel: emitter.stream,
+        monitorName: emitter.name,
+        stream: STREAM.PROMPT,
+        text
+      });
+    }
+  }
+
+  return { handleLine, handleTextBlock, handlePromptResult, appendSystemMessage };
 }

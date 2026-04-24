@@ -1,51 +1,53 @@
 import path from "node:path";
 
 export const GITHUB_DIR = ".github";
-export const CONFIG_FILENAME = "copilot-channels.config.json";
+export const CONFIG_FILENAME = "tap.config.json";
 export const CONFIG_LOCATIONS = [
   CONFIG_FILENAME,
   `${GITHUB_DIR}${path.sep}${CONFIG_FILENAME}`
 ];
 export const COPILOT_INSTRUCTIONS_PATH = `${GITHUB_DIR}/copilot-instructions.md`;
 
-export const MAX_CHANNEL_ENTRIES = 200;
-export const DEFAULT_CHANNEL = "main";
-export const DEFAULT_CHANNEL_DESCRIPTION = "Extension events";
+export const MAX_STREAM_ENTRIES = 200;
+export const DEFAULT_STREAM = "main";
+export const DEFAULT_STREAM_DESCRIPTION = "Extension events";
 
-export const LOOP_INTERVAL_PATTERN =
+export const RUN_INTERVAL_PATTERN =
   /^\s*(?:every\s+)?(\d+)\s*(s|sec|secs|second|seconds|m|min|mins|minute|minutes|h|hr|hrs|hour|hours|d|day|days)\s*$/i;
 
 export const NOTIFICATION_BATCH_SIZE = 4;
 
 export const LOG_PREFIX = "[📎]:";
 
-export const SCOPE = Object.freeze({
+export const LIFESPAN = Object.freeze({
   TEMPORARY: "temporary",
   PERSISTENT: "persistent"
 });
 
-export const MANAGED_BY = Object.freeze({
-  USER: "user",
-  MODEL: "model"
+export const OWNERSHIP = Object.freeze({
+  USER_OWNED: "userOwned",
+  MODEL_OWNED: "modelOwned"
 });
 
-export const DELIVERY = Object.freeze({
-  ALL: "all",
-  IMPORTANT: "important"
+export const EVENT_OUTCOME = Object.freeze({
+  DROP: "drop",
+  KEEP: "keep",
+  SURFACE: "surface",
+  INJECT: "inject"
 });
 
-export const WORK_TYPE = Object.freeze({
+export const EMITTER_TYPE = Object.freeze({
   COMMAND: "command",
   PROMPT: "prompt"
 });
 
-export const EXECUTION_MODE = Object.freeze({
-  PROCESS: "process",
-  LOOP: "loop",
-  ONCE: "once"
+export const RUN_SCHEDULE = Object.freeze({
+  CONTINUOUS: "continuous",
+  TIMED: "timed",
+  ONE_TIME: "oneTime"
 });
 
-export const MONITOR_STATUS = Object.freeze({
+export const EMITTER_STATUS = Object.freeze({
   QUEUED: "queued",
   WAITING: "waiting",
   RUNNING: "running",
@@ -61,16 +63,16 @@ export const RUN_STATUS = Object.freeze({
   FAILURE: "failure"
 });
 
-export const MONITOR_OPERATION_STATUS = Object.freeze({
+export const EMITTER_OPERATION_STATUS = Object.freeze({
   REMOVED_FROM_CONFIG: "removed-from-config",
   CONFIGURED: "configured"
 });
 
-export const TERMINAL_MONITOR_STATUSES = Object.freeze([
-  MONITOR_STATUS.STOPPED,
-  MONITOR_STATUS.EXITED,
-  MONITOR_STATUS.COMPLETED,
-  MONITOR_STATUS.ERROR
+export const TERMINAL_EMITTER_STATUSES = Object.freeze([
+  EMITTER_STATUS.STOPPED,
+  EMITTER_STATUS.EXITED,
+  EMITTER_STATUS.COMPLETED,
+  EMITTER_STATUS.ERROR
 ]);
 
 export const STREAM = Object.freeze({
@@ -83,7 +85,7 @@ export const STREAM = Object.freeze({
 export const SOURCE = Object.freeze({
   SYSTEM: "system",
   TOOL: "tool",
-  MONITOR: "monitor",
-  MONITOR_STDERR: "monitor:stderr",
-  MONITOR_PROMPT: "monitor:prompt"
+  EMITTER: "emitter",
+  EMITTER_STDERR: "emitter:stderr",
+  EMITTER_PROMPT: "emitter:prompt"
 });

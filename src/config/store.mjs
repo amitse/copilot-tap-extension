@@ -1,85 +1,85 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
-import { CONFIG_FILENAME, CONFIG_LOCATIONS, MANAGED_BY, SCOPE } from "../consts.mjs";
-import { normalizeManagedBy, normalizeName } from "../util/normalize.mjs";
+import { CONFIG_FILENAME, CONFIG_LOCATIONS, OWNERSHIP, LIFESPAN } from "../consts.mjs";
+import { normalizeOwnership, normalizeName } from "../util/normalize.mjs";
 import { assertMutable } from "../util/policy.mjs";
 
 function emptyConfig() {
-  return { channels: [], monitors: [] };
+  return { streams: [], emitters: [] };
 }
 
 function ensureShape(config) {
   if (!config || typeof config !== "object") {
     return emptyConfig();
   }
-  if (!Array.isArray(config.channels)) {
-    config.channels = [];
+  if (!Array.isArray(config.streams)) {
+    config.streams = [];
   }
-  if (!Array.isArray(config.monitors)) {
-    config.monitors = [];
+  if (!Array.isArray(config.emitters)) {
+    config.emitters = [];
   }
   return config;
 }
 
-export function serializeChannel(channel) {
-  const entry = { name: channel.name };
+export function serializeStream(stream) {
+  const entry = { name: stream.name };
 
-  if (channel.description) {
-    entry.description = channel.description;
+  if (stream.description) {
+    entry.description = stream.description;
   }
 
-  if (channel.subscription.scope === SCOPE.PERSISTENT || channel.subscription.enabled) {
-    entry.subscription = {
-      enabled: channel.subscription.enabled,
-      delivery: channel.subscription.delivery,
-      managedBy: channel.subscription.managedBy
+  if (stream.sessionInjector.lifespan === LIFESPAN.PERSISTENT || stream.sessionInjector.enabled) {
+    entry.sessionInjector = {
+      enabled: stream.sessionInjector.enabled,
+      delivery: stream.sessionInjector.delivery,
+      ownership: stream.sessionInjector.ownership
     };
   }
 
   return entry;
 }
 
-export function serializeMonitor(monitor) {
+export function serializeEmitter(emitter) {
   const entry = {
-    name: monitor.name,
-    channel: monitor.channel,
-    autoStart: monitor.autoStart,
-    includeStderr: monitor.includeStderr,
-    managedBy: monitor.managedBy
+    name: emitter.name,
+    stream: emitter.channel,
+    autoStart: emitter.autoStart,
+    includeStderr: emitter.includeStderr,
+    ownership: emitter.managedBy
   };
 
-  if (monitor.command) {
-    entry.command = monitor.command;
+  if (emitter.command) {
+    entry.command = emitter.command;
   }
-  if (monitor.prompt) {
-    entry.prompt = monitor.prompt;
+  if (emitter.prompt) {
+    entry.prompt = emitter.prompt;
   }
-  if (monitor.every) {
-    entry.every = monitor.every;
+  if (emitter.every) {
+    entry.every = emitter.every;
   }
-  if (monitor.description) {
-    entry.description = monitor.description;
+  if (emitter.description) {
+    entry.description = emitter.description;
   }
-  if (monitor.requestedCwd) {
-    entry.cwd = monitor.requestedCwd;
+  if (emitter.requestedCwd) {
+    entry.cwd = emitter.requestedCwd;
   }
 
-  entry.classifier = {};
-  if (monitor.classifier.includePattern) {
-    entry.classifier.includePattern = monitor.classifier.includePattern;
+  entry.eventFilter = {};
+  if (emitter.classifier.includePattern) {
+    entry.eventFilter.includePattern = emitter.classifier.includePattern;
   }
-  if (monitor.classifier.excludePattern) {
-    entry.classifier.excludePattern = monitor.classifier.excludePattern;
+  if (emitter.classifier.excludePattern) {
+    entry.eventFilter.excludePattern = emitter.classifier.excludePattern;
   }
-  if (monitor.classifier.notifyPattern) {
-    entry.classifier.notifyPattern = monitor.classifier.notifyPattern;
+  if (emitter.classifier.notifyPattern) {
+    entry.eventFilter.notifyPattern = emitter.classifier.notifyPattern;
   }
-  if (monitor.classifier.managedBy !== monitor.managedBy) {
-    entry.classifier.managedBy = monitor.classifier.managedBy;
+  if (emitter.classifier.managedBy !== emitter.managedBy) {
+    entry.eventFilter.ownership = emitter.classifier.managedBy;
   }
-  if (Object.keys(entry.classifier).length === 0) {
-    delete entry.classifier;
+  if (Object.keys(entry.eventFilter).length === 0) {
+    delete entry.eventFilter;
   }
 
   return entry;
@@ -124,10 +124,10 @@ export function createConfigStore(options = {}) {
     }
 
     const payload = {
-      channels: [...state.config.channels].sort((left, right) =>
+      streams: [...state.config.streams].sort((left, right) =>
         normalizeName(left.name).localeCompare(normalizeName(right.name))
       ),
-      monitors: [...state.config.monitors].sort((left, right) =>
+      emitters: [...state.config.emitters].sort((left, right) =>
         normalizeName(left.name).localeCompare(normalizeName(right.name))
       )
     };
@@ -135,64 +135,64 @@ export function createConfigStore(options = {}) {
     fs.writeFileSync(state.filePath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
   }
 
-  function findChannelIndex(name) {
-    return state.config.channels.findIndex((channel) => normalizeName(channel.name) === name);
+  function findStreamIndex(name) {
+    return state.config.streams.findIndex((stream) => normalizeName(stream.name) === name);
   }
 
-  function findMonitorIndex(name) {
-    return state.config.monitors.findIndex((monitor) => normalizeName(monitor.name) === name);
+  function findEmitterIndex(name) {
+    return state.config.emitters.findIndex((emitter) => normalizeName(emitter.name) === name);
   }
 
-  function upsertChannel(channel) {
+  function upsertStream(stream) {
     ensureShape(state.config);
-    const entry = serializeChannel(channel);
-    const index = findChannelIndex(channel.name);
+    const entry = serializeStream(stream);
+    const index = findStreamIndex(stream.name);
 
     if (index === -1) {
-      state.config.channels.push(entry);
+      state.config.streams.push(entry);
     } else {
-      state.config.channels[index] = entry;
+      state.config.streams[index] = entry;
     }
   }
 
-  function upsertMonitor(monitor) {
+  function upsertEmitter(emitter) {
     ensureShape(state.config);
-    const entry = serializeMonitor(monitor);
-    const index = findMonitorIndex(monitor.name);
+    const entry = serializeEmitter(emitter);
+    const index = findEmitterIndex(emitter.name);
 
     if (index === -1) {
-      state.config.monitors.push(entry);
+      state.config.emitters.push(entry);
     } else {
-      state.config.monitors[index] = entry;
+      state.config.emitters[index] = entry;
     }
   }
 
-  function removeMonitor(name, force = false) {
+  function removeEmitter(name, force = false) {
     const normalized = normalizeName(name);
-    const index = findMonitorIndex(normalized);
+    const index = findEmitterIndex(normalized);
     if (index === -1) {
       return false;
     }
 
-    const entry = state.config.monitors[index];
-    assertMutable(normalizeManagedBy(entry.managedBy, MANAGED_BY.USER), force, `Monitor '${normalized}'`);
-    state.config.monitors.splice(index, 1);
+    const entry = state.config.emitters[index];
+    assertMutable(normalizeOwnership(entry.ownership, OWNERSHIP.USER_OWNED), force, `Emitter '${normalized}'`);
+    state.config.emitters.splice(index, 1);
     return true;
   }
 
-  function getChannels() {
+  function getStreams() {
     ensureShape(state.config);
-    return state.config.channels;
+    return state.config.streams;
   }
 
-  function getMonitors() {
+  function getEmitters() {
     ensureShape(state.config);
-    return state.config.monitors;
+    return state.config.emitters;
   }
 
-  function findMonitor(name) {
-    const index = findMonitorIndex(normalizeName(name));
-    return index === -1 ? null : state.config.monitors[index];
+  function findEmitter(name) {
+    const index = findEmitterIndex(normalizeName(name));
+    return index === -1 ? null : state.config.emitters[index];
   }
 
   function getPath() {
@@ -206,12 +206,12 @@ export function createConfigStore(options = {}) {
   return {
     load,
     save,
-    upsertChannel,
-    upsertMonitor,
-    removeMonitor,
-    getChannels,
-    getMonitors,
-    findMonitor,
+    upsertStream,
+    upsertEmitter,
+    removeEmitter,
+    getStreams,
+    getEmitters,
+    findEmitter,
     getPath,
     getCwd
   };

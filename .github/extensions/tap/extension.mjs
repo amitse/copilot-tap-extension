@@ -1,6 +1,6 @@
 import { joinSession } from "@github/copilot-sdk/extension";
 
-import { createCopilotChannelsRuntime } from "../../../src/copilot-channels-runtime.mjs";
+import { createCopilotChannelsRuntime } from "../../../src/tap-runtime.mjs";
 
 const runtime = createCopilotChannelsRuntime({
   cwd: process.cwd()
@@ -12,11 +12,11 @@ const session = await joinSession({
 });
 
 runtime.attachSession(session);
-runtime.appendChannelMessage(runtime.DEFAULT_CHANNEL, {
+runtime.appendStreamMessage(runtime.DEFAULT_STREAM, {
   source: "system",
   text: "copilot-channels-extension loaded."
 });
 
 session.on("session.shutdown", () => {
-  void runtime.stopAllMonitors();
+  void runtime.stopAllEmitters();
 });

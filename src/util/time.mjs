@@ -1,4 +1,4 @@
-import { LOOP_INTERVAL_PATTERN } from "../consts.mjs";
+import { RUN_INTERVAL_PATTERN } from "../consts.mjs";
 
 export function nowIso() {
   return new Date().toISOString();
@@ -9,7 +9,7 @@ export function parseLoopInterval(value) {
     return null;
   }
 
-  const match = String(value).trim().match(LOOP_INTERVAL_PATTERN);
+  const match = String(value).trim().match(RUN_INTERVAL_PATTERN);
   if (!match) {
     throw new Error(`Invalid every interval '${value}'. Use values like 30s, 5m, 2h, or 1d.`);
   }

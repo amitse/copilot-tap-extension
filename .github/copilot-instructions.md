@@ -4,20 +4,19 @@ Use this extension as a background-awareness layer for long-running or polled si
 
 ## Mental model
 
-- A **monitor** is a background command or poller script.
-- A **prompt work item** is a prompt sent back into the agent, once or on a loop.
-- A **channel** is the stream where accepted monitor output lands.
-- A **classifier** decides:
-  - what enters the stream (`includePattern`)
-  - what gets dropped (`excludePattern`)
-  - what proactively interrupts the session (`notifyPattern`)
-- A **subscription** decides whether the agent should proactively surface updates from a channel.
+- An **EventEmitter** is the only primary resource users define — a background shell command (CommandEmitter) or agent prompt (PromptEmitter).
+- An **EventStream** is automatically created for each emitter (same name) and stores accepted output.
+- An **EventFilter** is an ordered rule list owned by the emitter: `[{ match, outcome }]` — first match wins.
+  - Outcomes: `drop` (discard), `keep` (store in EventStream), `surface` (keep + show in timeline), `inject` (keep + surface + inject into Copilot)
+- A **SessionInjector** is derived automatically per EventStream and controls whether updates are proactively injected into the session.
 
-The extension inserts subscribed monitor updates directly from monitor output with `session.send()`. It does not depend on transcript events like `user.message` or `assistant.message`.
+PromptEmitter events always inject (no filter applied). CommandEmitter events go through the EventFilter. The EventFilter is hot-swappable while the emitter runs.
+
+The extension injects EventStream updates directly from emitter output with `session.send()`. It does not depend on transcript events like `user.message` or `assistant.message`.
 
 ## When to use it
 
-Reach for channels and monitors when the user wants to:
+Reach for EventEmitters when the user wants to:
 
 - watch something over time
 - babysit a PR, build, issue queue, deploy, or inbox
@@ -25,106 +24,105 @@ Reach for channels and monitors when the user wants to:
 - get interrupted only for important changes
 - store short rolling history for a live stream
 
-Reach for **prompt work items** when the user wants the agent itself to periodically re-check something, summarize changes, or perform maintenance without waiting for another manual prompt.
+Reach for **PromptEmitters** when the user wants the agent itself to periodically re-check something, summarize changes, or perform maintenance without waiting for another manual prompt.
 
 ## Default operating pattern
 
-1. Start with a **temporary** monitor unless the workflow is obviously recurring.
-2. Choose a channel name that represents the concern, not the command.
-3. Subscribe with `delivery="all"` if you want zero filtering at first, then move to `delivery="important"` once a `notifyPattern` exists.
-4. Start the classifier broad enough to learn the stream shape.
+1. Start with a **temporary** emitter (`lifespan="temporary"`) unless the workflow is obviously recurring across multiple agent sessions.
+2. The EventStream is created automatically with the same name as the emitter.
+3. Enable the SessionInjector if the emitter should proactively surface updates.
+4. Start with a keep-all bootstrap policy (no EventFilter rules) to learn the stream shape.
 5. Let a few events arrive.
-6. Inspect channel history.
-7. Tighten the classifier:
-   - add `excludePattern` first
-   - narrow `includePattern` only after you understand the stream
-   - sharpen `notifyPattern` so the user is interrupted only for meaningful events
-8. If the work should repeat inside the session, add `every`.
-9. If the monitor proves useful across sessions, persist it and switch ownership to `managedBy="user"` unless the user explicitly wants ongoing model control.
+6. Inspect EventStream history.
+7. Tighten the EventFilter:
+   - add `{ "match": "<noise>", "outcome": "drop" }` rules first
+   - add `{ "match": "<signal>", "outcome": "inject" }` rules for important events
+   - use `{ "match": ".*", "outcome": "keep" }` as a catch-all to store everything else
+8. If the work should repeat inside the session, add `runInterval`.
+9. If the emitter proves useful across sessions, persist it and switch ownership to `ownership="userOwned"` unless the user explicitly wants ongoing model control.
 
 ## Recommended tool sequence
 
 Use these tools in roughly this order:
 
-1. `copilot_channels_start_monitor`
-2. `copilot_channels_subscribe` if the monitor should proactively surface updates
-3. `copilot_channels_history` after a few events
-4. `copilot_channels_set_classifier` to tighten the stream
-5. `copilot_channels_post` to leave structured notes or summaries in the channel
-6. `copilot_channels_stop_monitor` when the task ends or if the stream is no longer useful
+1. `tap_start_emitter` — create the EventEmitter
+2. `tap_enable_injector` — enable the SessionInjector if the emitter should proactively surface updates
+3. `tap_stream_history` — read EventStream history after a few events
+4. `tap_set_event_filter` — update the EventFilter rules
+5. `tap_post` — leave structured notes or summaries in the EventStream
+6. `tap_stop_emitter` — stop the emitter when the task ends or if the stream is no longer useful
 
 ## Good defaults
 
 ### For unknown or noisy streams
 
-- `scope="temporary"`
-- `managedBy="model"`
+- `lifespan="temporary"`
+- `ownership="modelOwned"`
 - `subscribe=true`
-- `delivery="all"` to start with no hidden filtering
-- broad or empty `includePattern`
-- empty `excludePattern`
-- empty `notifyPattern` until the stream shape is clear
+- No EventFilter rules initially (keep-all bootstrap policy)
+- Let events accumulate, then add rules progressively
 
 ### For prompt-driven maintenance
 
-- use `prompt` instead of `command`
-- add `every` for a fixed session-scoped loop
-- use one-shot prompt work when the user wants a background check only once
+- use `prompt` instead of `command` (creates a PromptEmitter)
+- add `runInterval` for a fixed session-scoped timed schedule
+- use oneTime PromptEmitter when the user wants a background check only once
 - keep the first prompt concise and action-oriented
 
 ### For recurring team workflows
 
-- `scope="persistent"`
-- `managedBy="user"`
+- `lifespan="persistent"`
+- `ownership="userOwned"`
 - `autoStart=true` only if the user wants it every session
-- stable channel naming
-- user-approved thresholds and classifier rules
+- stable EventStream naming
+- user-approved EventFilter rules
 
 ## Ownership rules
 
-Treat these as **user-controlled** by default:
+Ownership lives on the EventEmitter only. EventStream and SessionInjector are derived.
 
-- persistent monitors
+Treat these as **userOwned** by default:
+
+- persistent emitters
 - security, compliance, finance, or release-gating workflows
 - email or external notification rules
 - org-specific routing rules or thresholds
 
-Treat these as safe for **model control**:
+Treat these as safe for **modelOwned**:
 
-- temporary monitors created for one task
-- temporary subscriptions
-- live classifier tuning to reduce noise
-- exploratory monitoring where the stream shape is not yet known
+- temporary emitters created for one task
+- temporary SessionInjectors
+- live EventFilter tuning to reduce noise
+- exploratory emitters where the stream shape is not yet known
 
-Never override a user-controlled persistent monitor, classifier, or subscription unless the user explicitly asks. If the extension requires `force=true`, use it only for an explicit user request.
+Never override a userOwned persistent emitter or its EventFilter unless the user explicitly asks. If the extension requires `transferOwnership=true`, use it only for an explicit user request.
 
-## How to tighten classifiers
+## How to tighten EventFilters
 
-Prefer this progression:
+The EventFilter is an ordered rule list — first match wins. Prefer this progression:
 
-1. **Observe first.** Let the raw stream teach you the vocabulary.
-2. **Exclude obvious noise.** Polling chatter, heartbeats, bot messages, deprecations, duplicate summaries.
-3. **Narrow inclusion only after step 2.** Do not accidentally cut off useful signal before you understand it.
-4. **Use `notifyPattern` as the interruption gate.** A line can be worth keeping in history without being worth surfacing live.
-
-There is no built-in default notify regex anymore. If you have not set `notifyPattern`, the subscribed stream is not filtered by a hidden fallback.
+1. **Observe first.** Let the raw stream teach you the vocabulary (keep-all bootstrap).
+2. **Drop obvious noise.** Add `{ "match": "<noise>", "outcome": "drop" }` rules for polling chatter, heartbeats, bot messages, deprecations, duplicate summaries.
+3. **Inject important signals.** Add `{ "match": "<signal>", "outcome": "inject" }` for events that should interrupt the session.
+4. **Surface useful context.** Add `{ "match": "<context>", "outcome": "surface" }` for events worth showing in the timeline.
+5. **Catch-all.** End with `{ "match": ".*", "outcome": "keep" }` to store everything else in the EventStream.
 
 Good examples:
 
-- log tail: exclude timestamps, retries, and health-check chatter; notify on `error|fatal|panic`
-- PR watcher: exclude bot comments and repeated status updates; notify on `changes requested|failed|approved`
-- ticket queue: include all open/escalated items at first; notify only on `sla-breach|high-priority|escalated`
+- log tail: drop timestamps, retries, and health-check chatter; inject `error|fatal|panic`
+- PR watcher: drop bot comments and repeated status updates; inject `changes requested|failed|approved`
+- ticket queue: inject `sla-breach|high-priority|escalated`; keep everything else
 
 ## Temporary vs persistent
 
-Use **temporary** when:
+Use **temporary** (`lifespan="temporary"`) when:
 
 - the user is debugging, triaging, or investigating
-- the correct classifier is not obvious yet
+- the correct EventFilter is not obvious yet
 - the stream exists only for one task, incident, PR, or release window
-- the loop should end with the session
+- the timed schedule should end with the session
 
-Use **persistent** when:
+Use **persistent** (`lifespan="persistent"`) when:
 
 - the same workflow should come back next session
 - the command and thresholds are stable
@@ -132,7 +130,7 @@ Use **persistent** when:
 
 ## Everything is code
 
-If no ready-made CLI exists, create or use a small script that prints one meaningful line per event. Good monitors are often:
+If no ready-made CLI exists, create or use a small script that prints one meaningful line per event. Good CommandEmitters are often:
 
 - API pollers
 - webhook log tails
@@ -141,18 +139,18 @@ If no ready-made CLI exists, create or use a small script that prints one meanin
 - local watch scripts
 - validation scripts for builds, tests, deploys, ETL, or compliance
 
-Prefer normalized output over raw dumps. Classifiers work much better when each line already carries a stable tag or status word.
+Prefer normalized output over raw dumps. EventFilters work much better when each line already carries a stable tag or status word.
 
-If the work is mostly reasoning rather than data collection, prefer a prompt work item:
+If the work is mostly reasoning rather than data collection, prefer a PromptEmitter:
 
-- prompt once for a background check
-- prompt + `every` for a fixed maintenance loop
+- prompt once for a background check (oneTime)
+- prompt + `runInterval` for a fixed maintenance loop (timed)
 
 This is the closest analogue to Claude's session-scoped `/loop` behavior in this extension.
 
 ## Borrow from the official SDK examples
 
-When working on the extension itself, not just using its monitor tools, prefer these SDK patterns:
+When working on the extension itself, not just using its emitter tools, prefer these SDK patterns:
 
 - use `session.log()` for user-visible diagnostics; never rely on `console.log()`
 - use hooks such as `onUserPromptSubmitted`, `onPreToolUse`, `onPostToolUse`, and `onErrorOccurred` to shape behavior
@@ -161,29 +159,29 @@ When working on the extension itself, not just using its monitor tools, prefer t
 - use `onPermissionRequest` and `onUserInputRequest` for guarded flows instead of custom ad hoc prompting
 - use `fs.watch` or `watchFile` when the extension should react to manual file edits or workspace artifacts such as `plan.md`
 
-Good non-channel examples to adapt into this repo:
+Good non-emitter examples to adapt into this repo:
 
-- after an edit tool runs, trigger a lint or test monitor automatically
-- watch a config file and refresh the corresponding monitor when the user edits it
-- add a helper tool that fetches one-shot data from an API while monitors continue to watch background streams
-- log classifier updates and monitor lifecycle events to the timeline for observability
+- after an edit tool runs, trigger a lint or test emitter automatically
+- watch a config file and refresh the corresponding emitter when the user edits it
+- add a helper tool that fetches one-shot data from an API while emitters continue to watch background streams
+- log EventFilter updates and emitter lifecycle events to the timeline for observability
 
 ## What not to do
 
-- Do not create one giant mixed channel for unrelated workflows.
+- Do not create one giant mixed EventStream for unrelated workflows.
 - Do not make a noisy stream persistent before you understand it.
-- Do not leave everything at `delivery="all"` for chatty sources.
-- Do not mutate user-owned persistent rules without explicit permission.
-- Do not use channels as a transcript mirror; use them for monitor-driven context.
+- Do not skip the keep-all bootstrap policy for chatty sources — observe first, then add rules.
+- Do not mutate userOwned persistent emitters or their EventFilter without explicit permission.
+- Do not use EventStreams as a transcript mirror; use them for emitter-driven context.
 
 ## A strong operating recipe
 
 When the user says "watch this" and the stream shape is unclear:
 
-1. Create a temporary monitor.
-2. Subscribe with `delivery="important"`.
-3. Start broad.
+1. Create a temporary EventEmitter (CommandEmitter or PromptEmitter).
+2. Enable the SessionInjector.
+3. Start with keep-all bootstrap (no EventFilter rules).
 4. Wait for a few real events.
-5. Read history.
-6. Tighten the classifier.
-7. If the workflow proves valuable, ask or decide to create the persistent, user-controlled version.
+5. Read EventStream history.
+6. Add EventFilter rules progressively (drop noise → inject signal → keep the rest).
+7. If the workflow proves valuable, ask or decide to create the persistent, userOwned version.

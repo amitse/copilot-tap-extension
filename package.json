@@ -1,11 +1,11 @@
 {
-  "name": "copilot-channels-extension",
-  "version": "0.1.0",
-  "description": "Copilot CLI extension that approximates Claude Code style channels and background monitors.",
+  "name": "copilot-tap-extension",
+  "version": "0.2.0",
+  "description": "Copilot CLI extension for background event emitters, event streams, and session injection.",
   "type": "module",
   "license": "MIT",
   "scripts": {
-    "check": "node --check ./src/copilot-channels-runtime.mjs && node --check ./.github/extensions/copilot-channels-extension/extension.mjs && node --check ./evals/run.mjs && node --check ./examples/heartbeat.mjs",
+    "check": "node --check ./src/tap-runtime.mjs && node --check ./.github/extensions/tap/extension.mjs && node --check ./evals/run.mjs && node --check ./examples/heartbeat.mjs",
     "demo:heartbeat": "node ./examples/heartbeat.mjs",
     "evals:list": "node ./evals/run.mjs list",
     "evals:smoke": "node ./evals/run.mjs smoke",
@@ -16,8 +16,10 @@
     "copilot",
     "copilot-cli",
     "extensions",
-    "monitor",
-    "channels"
+    "tap",
+    "event-emitter",
+    "event-stream",
+    "event-filter"
   ],
   "devDependencies": {
     "yaml": "^2.8.3",

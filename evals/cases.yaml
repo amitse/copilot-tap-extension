@@ -18,7 +18,7 @@ cases:
         command: node ./examples/heartbeat.mjs
     expected_tool_usage:
       must_call:
-        - copilot_channels_start_monitor
+        - tap_start_emitter
       preferred:
         scope: temporary
         subscribe: true
@@ -65,7 +65,7 @@ cases:
         command: git status --short
     expected_tool_usage:
       must_call:
-        - copilot_channels_start_monitor
+        - tap_start_emitter
       preferred:
         every: 5m
     pass_conditions:
@@ -91,7 +91,7 @@ cases:
       or issue escalations worth addressing.
     expected_tool_usage:
       must_call:
-        - copilot_channels_start_monitor
+        - tap_start_emitter
       preferred:
         prompt: present
         every: 15m

@@ -2,10 +2,10 @@ import { NOTIFICATION_BATCH_SIZE } from "../consts.mjs";
 
 export function buildNotificationPrompt(batch) {
   return [
-    "Background channel update from copilot-channels-extension:",
+    "Background event stream update from copilot-channels-extension:",
     ...batch.map((item) => {
       const streamLabel = item.stream ? `/${item.stream}` : "";
-      return `- channel=${item.channel} monitor=${item.monitorName}${streamLabel}: ${item.text}`;
+      return `- stream=${item.channel} emitter=${item.monitorName}${streamLabel}: ${item.text}`;
     }),
     "Only react if the update matters to the current task."
   ].join("\n");

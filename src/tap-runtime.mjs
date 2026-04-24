@@ -1,9 +1,9 @@
-import { DEFAULT_CHANNEL } from "./consts.mjs";
+import { DEFAULT_STREAM } from "./consts.mjs";
 import { createSessionPort } from "./session/port.mjs";
-import { createChannelStore } from "./channels/store.mjs";
-import { createNotificationDispatcher } from "./channels/notifications.mjs";
+import { createStreamStore } from "./streams/store.mjs";
+import { createNotificationDispatcher } from "./streams/notifications.mjs";
 import { createConfigStore } from "./config/store.mjs";
-import { createMonitorSupervisor } from "./monitor/supervisor.mjs";
+import { createEmitterSupervisor } from "./emitter/supervisor.mjs";
 import { createTools } from "./tools/index.mjs";
 import { createHooks } from "./hooks.mjs";
 
@@ -15,12 +15,12 @@ export function createCopilotChannelsRuntime(options = {}) {
   };
 
   const sessionPort = createSessionPort(options.session ?? null);
-  const channels = createChannelStore();
+  const streams = createStreamStore();
   const configStore = createConfigStore({ cwd: baseCwd });
   const notifications = createNotificationDispatcher({ sessionPort });
   const persist = () => configStore.save();
-  const supervisor = createMonitorSupervisor({
-    channels,
+  const supervisor = createEmitterSupervisor({
+    streams,
     configStore,
     notifications,
     sessionPort,
@@ -28,15 +28,15 @@ export function createCopilotChannelsRuntime(options = {}) {
     persist
   });
 
-  const tools = createTools({ channels, configStore, supervisor, sessionPort, getBaseCwd, persist });
-  const hooks = createHooks({ channels, configStore, supervisor, sessionPort, setBaseCwd });
+  const tools = createTools({ streams, configStore, supervisor, sessionPort, getBaseCwd, persist });
+  const hooks = createHooks({ streams, configStore, supervisor, sessionPort, setBaseCwd });
 
   return {
     attachSession: (nextSession) => sessionPort.attach(nextSession),
     tools,
     hooks,
-    stopAllMonitors: () => supervisor.stopAll(),
-    appendChannelMessage: (name, entry) => channels.append(name, entry),
-    DEFAULT_CHANNEL
+    stopAllEmitters: () => supervisor.stopAll(),
+    appendStreamMessage: (name, entry) => streams.append(name, entry),
+    DEFAULT_STREAM
   };
 }

@@ -6,7 +6,7 @@ import { execFileSync, spawn } from "node:child_process";
 import { CopilotClient, approveAll } from "@github/copilot-sdk";
 import { parse } from "yaml";
 
-import { createCopilotChannelsRuntime } from "../src/copilot-channels-runtime.mjs";
+import { createCopilotChannelsRuntime } from "../src/tap-runtime.mjs";
 import { CONFIG_LOCATIONS } from "../src/consts.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -193,14 +193,14 @@ function buildExecutorPrompt(caseDef) {
     `You are running automated eval case ${caseDef.id}: ${caseDef.title}.`,
     "Work only inside the current repository.",
     "Execute the user request below as the real Copilot agent.",
-    "Work efficiently. Minimize tool calls and do not over-explore the repository - the copilot_channels_* tools are the only interface you need for this extension.",
+    "Work efficiently. Minimize tool calls and do not over-explore the repository - the tap_* tools are the only interface you need for this extension.",
     "Do not write test scripts, spawn subagents, reload the extension, or restart sessions. If a case requires behavior that is only observable across sessions, describe what would happen instead of trying to simulate it.",
-    "If you need to change a monitor's cadence, command, or prompt, stop it with copilot_channels_stop_monitor and then call copilot_channels_start_monitor again with the same name and the new values.",
+    "If you need to change a monitor's cadence, command, or prompt, stop it with tap_stop_emitter and then call tap_start_emitter again with the same name and the new values.",
     "When practical inside a single run, inspect monitor state and channel history before finishing.",
     "If you create temporary monitors, loops, or prompt work items, stop them before finishing unless the case explicitly tests persistence.",
     "Do not leave background work running at the end of the run. The eval harness will time out if you do.",
     "Do not edit eval result files.",
-    "If the repo-scoped copilot_channels_* tools are unavailable in this session, say that clearly instead of pretending the action succeeded.",
+    "If the repo-scoped tap_* tools are unavailable in this session, say that clearly instead of pretending the action succeeded.",
     setupLines.length > 0 ? `Setup notes:\n${setupLines.join("\n")}` : null,
     `User request:\n${caseDef.user_prompt}`,
     `Pass conditions:\n${passConditions}`,
@@ -235,7 +235,7 @@ function buildJudgePrompt(caseDef, artifacts) {
 
 function buildPreflightPrompt() {
   return [
-    "Attempt to use the tool copilot_channels_list_channels in this session.",
+    "Attempt to use the tool tap_list_streams in this session.",
     "If the tool is unavailable, respond exactly as: UNAVAILABLE: <short reason>.",
     "If the tool is available, respond exactly as: AVAILABLE: <short result>."
   ].join(" ");
@@ -247,7 +247,7 @@ function buildSmokeReadyPrompt() {
 
 function buildModeValidationPrompt(probeChannel) {
   return [
-    "Use exactly one tool call: copilot_channels_subscribe.",
+    "Use exactly one tool call: tap_enable_injector.",
     `Set channel='${probeChannel}', description='Mode validation probe', delivery='all', scope='persistent', managedBy='model'.`,
     "Do not use any other tools.",
     "Do not read files, search the repository, or inspect the codebase.",
@@ -262,7 +262,7 @@ function buildInteractiveExecutorPrompt(caseDef, executorSummaryRelativePath) {
     "This eval must run in an interactive Copilot session so the repo-scoped extension can attach to the foreground session.",
     `If practical, write a plain-text execution report to ${executorSummaryRelativePath}.`,
     "If you write that report, it should include:",
-    "- whether copilot_channels_* tools were visible",
+    "- whether tap_* tools were visible",
     "- which extension tools you used",
     "- what channel, monitor, subscription, or config changes you made",
     "- the final EVAL_EXECUTION_SUMMARY"

@@ -1,4 +1,4 @@
-import { DELIVERY, MANAGED_BY, SCOPE } from "../consts.mjs";
+import { EVENT_OUTCOME, OWNERSHIP, LIFESPAN } from "../consts.mjs";
 
 export function normalizeName(value, fallback = "") {
   const normalized = String(value ?? "")
@@ -10,20 +10,20 @@ export function normalizeName(value, fallback = "") {
   return normalized || fallback;
 }
 
-export function normalizeScope(value, fallback = SCOPE.TEMPORARY) {
-  return String(value ?? fallback).trim().toLowerCase() === SCOPE.PERSISTENT
-    ? SCOPE.PERSISTENT
-    : SCOPE.TEMPORARY;
+export function normalizeLifespan(value, fallback = LIFESPAN.TEMPORARY) {
+  return String(value ?? fallback).trim().toLowerCase() === LIFESPAN.PERSISTENT
+    ? LIFESPAN.PERSISTENT
+    : LIFESPAN.TEMPORARY;
 }
 
-export function normalizeManagedBy(value, fallback = MANAGED_BY.MODEL) {
-  return String(value ?? fallback).trim().toLowerCase() === MANAGED_BY.USER
-    ? MANAGED_BY.USER
-    : MANAGED_BY.MODEL;
+export function normalizeOwnership(value, fallback = OWNERSHIP.MODEL_OWNED) {
+  return String(value ?? fallback).trim().toLowerCase() === OWNERSHIP.USER_OWNED
+    ? OWNERSHIP.USER_OWNED
+    : OWNERSHIP.MODEL_OWNED;
 }
 
-export function normalizeDelivery(value, fallback = DELIVERY.IMPORTANT) {
-  return String(value ?? fallback).trim().toLowerCase() === DELIVERY.ALL
-    ? DELIVERY.ALL
-    : DELIVERY.IMPORTANT;
+export function normalizeOutcome(value, fallback = EVENT_OUTCOME.SURFACE) {
+  return String(value ?? fallback).trim().toLowerCase() === EVENT_OUTCOME.DROP
+    ? EVENT_OUTCOME.DROP
+    : fallback;
 }

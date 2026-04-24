@@ -31,7 +31,7 @@ node evals/run.mjs judge-interactive --run-dir "<prepared-run-dir>"
 
 The automated runner uses **one ACP server plus fresh SDK sessions**:
 
-1. **Preflight session** checks whether `copilot_channels_*` tools are mounted into the ACP session.
+1. **Preflight session** checks whether `tap_*` tools are mounted into the ACP session.
 2. **Executor session** runs the case prompt against the shared channels runtime.
 3. **Judge session** reads the saved artifacts and returns a structured verdict.
 
@@ -73,7 +73,7 @@ Automated ACP evals need:
 - authenticated GitHub Copilot CLI
 - this repo as the current working directory
 - `npm install` completed so the SDK package is available locally
-- a clean or intentionally prepared `copilot-channels.config.json`
+- a clean or intentionally prepared `tap.config.json`
 
 Interactive loader checks additionally need:
 
@@ -98,8 +98,8 @@ That split is deliberate:
 
 For the specific interactive-vs-`-p` question, `validate-modes` is the dedicated check:
 
-1. it runs a prompt-mode probe that asks Copilot to persist a unique channel subscription via `copilot_channels_subscribe`
-2. it inspects `copilot-channels.config.json` to see whether that probe channel was actually written
+1. it runs a prompt-mode probe that asks Copilot to persist a unique channel subscription via `tap_enable_injector`
+2. it inspects `tap.config.json` to see whether that probe channel was actually written
 3. it cleans up the probe channel
 4. it prints an interactive follow-up using the exact same prompt, plus an inspect command that verifies and cleans up the interactive run
 
@@ -200,7 +200,7 @@ Persistent, user-owned resources should require explicit override intent before 
 Use these built-in repo assets first:
 
 - `examples/heartbeat.mjs` for streaming command tests
-- `copilot-channels.config.example.json` as a seed for persistence tests
+- `tap.config.example.json` as a seed for persistence tests
 
 If a case needs a more specific line pattern, add a small dedicated fixture script under `evals/fixtures/` later rather than relying on ad hoc shell one-liners.
 

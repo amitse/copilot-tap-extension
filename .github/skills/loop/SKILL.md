@@ -5,7 +5,7 @@ argument-hint: "<interval> <prompt>"
 user-invocable: true
 ---
 
-Create a prompt-based looping monitor with `copilot_channels_start_monitor`.
+Create a timed PromptEmitter with `tap_start_emitter`.
 
 ## Expected input
 
@@ -22,31 +22,31 @@ Example:
 
 means:
 
-- `every = "5m"`
+- `runInterval = "5m"`
 - `prompt = "check the deploy"`
 
-The loop is scheduled on that interval. For prompt-based loops, the first run happens after the first interval rather than immediately.
+The emitter runs on a timed schedule. For timed PromptEmitters, the first run happens after the first interval rather than immediately.
 
 ## Required behavior
 
 When this skill is invoked:
 
-1. Use `copilot_channels_start_monitor`.
-2. Create a **prompt-based** loop, not a command monitor.
+1. Use `tap_start_emitter`.
+2. Create a **PromptEmitter** with a timed schedule, not a CommandEmitter.
 3. Default to:
-   - `scope = "temporary"`
+   - `lifespan = "temporary"`
    - `subscribe = false`
-4. Pick a concise monitor name and a matching channel name based on the task.
-5. Do not invent extra classifier rules unless the user explicitly asks for them.
-6. If the user explicitly asks to be notified, kept posted, or subscribed to updates, set:
+4. Pick a concise emitter name (the EventStream is created automatically with the same name).
+5. Do not invent extra EventFilter rules unless the user explicitly asks for them. PromptEmitter events always inject.
+6. If the user explicitly asks to be notified, kept posted, or subscribed to updates, enable the SessionInjector:
    - `subscribe = true`
    - `delivery = "important"`
-7. After creating the loop, confirm:
-   - monitor name
-   - channel name
+7. After creating the emitter, confirm:
+   - emitter name
+   - EventStream name
    - interval
    - scheduled prompt
-8. After confirming the loop, stop there. Do not immediately inspect channel history or react to background loop output unless the user explicitly asks for that follow-up.
+8. After confirming the emitter, stop there. Do not immediately inspect EventStream history or react to background emitter output unless the user explicitly asks for that follow-up.
 
 ## If the input is incomplete
 
@@ -54,4 +54,4 @@ If the interval or prompt body is missing, ask the user for the missing piece in
 
 ## If the user asks for persistence
 
-If the user explicitly asks to keep the loop across sessions, set `scope = "persistent"` and say that it will be restored from config on the next session start.
+If the user explicitly asks to keep the emitter across sessions, set `lifespan = "persistent"` and say that it will be restored from config on the next session start.
