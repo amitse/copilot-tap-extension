@@ -1,0 +1,30 @@
+{
+  "channels": [
+    {
+      "name": "ops",
+      "description": "Operational events from background monitors",
+      "subscription": {
+        "enabled": true,
+        "delivery": "important",
+        "managedBy": "user"
+      }
+    }
+  ],
+  "monitors": [
+    {
+      "name": "heartbeat",
+      "description": "Demo background status stream",
+      "command": "node ./examples/heartbeat.mjs",
+      "channel": "ops",
+      "autoStart": true,
+      "includeStderr": true,
+      "managedBy": "user",
+      "classifier": {
+        "includePattern": "ready|healthy|warning|error",
+        "excludePattern": "booting",
+        "notifyPattern": "warning|error|ready",
+        "managedBy": "user"
+      }
+    }
+  ]
+}
