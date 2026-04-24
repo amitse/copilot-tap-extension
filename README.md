@@ -189,3 +189,7 @@ npm run evals:validate-modes  # interactive vs prompt-mode gap
 The runtime has no production dependencies. Dev dependencies (`@github/copilot-sdk`, `yaml`) are used for the eval harness and extension loading.
 
 If you add a new tool or change the event pipeline, update the [reference](./docs/reference.md). If you add a new workflow pattern, add it to [use cases](./docs/use-cases.md).
+
+## License
+
+[MIT](./LICENSE)
