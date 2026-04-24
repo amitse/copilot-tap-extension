@@ -4,7 +4,9 @@ Filtered background streams for Copilot CLI.
 
 ---
 
-Copilot CLI can already run tasks in the background, but you have to check their output manually, and nothing flows back into your conversation. This extension adds **filtering and auto-injection**: background commands and agent prompts run continuously, an EventFilter decides what matters per line, and important events get pushed into your session automatically.
+Copilot CLI already runs background tasks, but their output sits idle until you check it. This extension adds **filtering and auto-injection** on top of that capability.
+
+Background commands and agent prompts produce output line by line. An EventFilter decides what to drop, what to store, and what to push into your session. Important events arrive without you asking.
 
 Single-file extension. Zero dependencies.
 
