@@ -20,12 +20,17 @@ Single-file entry point. No runtime dependencies beyond the Copilot SDK.
 
 ## Get started
 
+Prerequisites: [Node.js](https://nodejs.org/) and [Copilot CLI](https://docs.github.com/en/copilot/github-copilot-in-the-cli).
+
 ```bash
 git clone https://github.com/amitse/copilot-tap-extension
 cd copilot-tap-extension
-cp tap.config.example.json tap.config.json   # Windows: copy tap.config.example.json tap.config.json
+npm install
+cp tap.config.example.json tap.config.json
 copilot
 ```
+
+On Windows, replace `cp` with `copy`. The config file is required -- it tells the extension which emitters to auto-start.
 
 Once inside the session, try a natural-language request:
 
@@ -35,7 +40,7 @@ Once inside the session, try a natural-language request:
 
 > _"Tail the API logs, inject errors, drop health checks"_
 
-The example config includes a demo heartbeat emitter that starts automatically, so you can see events flowing before you set up your own.
+The example config ships with a demo heartbeat emitter that starts automatically, so you can see events flowing before you create your own.
 
 ## How it works
 
@@ -140,7 +145,7 @@ tap.config.example.json         # starter config
 
 ## Contributing
 
-The extension is a single `.mjs` file with zero dependencies. Before opening a PR, run the local checks:
+The extension entry point is a single `.mjs` file; the runtime lives in `src/`. Before opening a PR, run the local checks:
 
 ```bash
 npm run check              # syntax check
