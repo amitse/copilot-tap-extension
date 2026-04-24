@@ -10,11 +10,9 @@
 
 ---
 
-**Without this extension**, you alt-tab to check logs, poll dashboards, and re-ask Copilot the same question every few minutes.
+Copilot CLI already has background tasks — but you have to manually check them, and their output doesn't flow back into your conversation. This extension adds **automatic filtering and injection**. Background commands and prompts run, a filter decides what matters, and important events get pushed into your session.
 
-**With it**, you say _"watch the deploy logs, tell me if anything breaks"_ — and go back to coding. The extension tails commands, filters noise, and injects only the important lines back into your conversation.
-
-Not an MCP server. Not a custom agent. One `.github/extensions/` file.
+One `.github/extensions/` file. Zero dependencies.
 
 ## Who is this for?
 
@@ -43,70 +41,74 @@ Then say any of these:
 
 > _"Tail the API logs, inject errors, drop health checks"_
 
-That's it. The example config auto-starts a demo heartbeat emitter so you see it working immediately.
+The example config auto-starts a demo heartbeat emitter so you see it working immediately.
 
-## Three things you can do right now
+## How it works
+
+An **emitter** is a background process attached to your session. There are two kinds:
+
+- A **CommandEmitter** runs a shell command and captures its stdout line by line.
+- A **PromptEmitter** runs an agent prompt, optionally on a recurring interval.
+
+Each emitter has an **EventFilter** -- an ordered list of regex rules that decides what happens to each line of output. First match wins:
+
+| Outcome | What happens |
+| --- | --- |
+| **drop** | Discarded. Never stored. |
+| **keep** | Stored in the event stream for later review. |
+| **surface** | Stored and shown in the session timeline. |
+| **inject** | Stored, shown, and pushed into your conversation. |
+
+CommandEmitter output goes through the filter. PromptEmitter output always injects directly.
+
+Filters are hot-swappable while the emitter runs. You control who can change them: `ownership="modelOwned"` lets the agent tune rules on its own, while `ownership="userOwned"` locks them to your exact specification.
+
+## Three things you can do
 
 **1. Watch something in the background**
 
-Tell Copilot to watch a log, build, or command. It creates a background emitter, filters the noise, and only interrupts you when something actually needs your attention.
+Tell Copilot to watch a log, build, or command. It creates a CommandEmitter that runs alongside your session, filters the output, and only interrupts you when something needs attention.
 
 ```
 "Start a deploy watcher that tails our CI logs.
  Drop health checks, inject any failures or rollbacks."
 
-→ You keep coding for 20 minutes.
-→ Copilot interrupts: "Run 48291: deployment rollback triggered on prod"
+-> You keep coding for 20 minutes.
+-> Copilot interrupts: "Run 48291: deployment rollback triggered on prod"
 ```
 
 **2. Loop a prompt on a schedule**
 
-Have the agent re-check something every N minutes — PR comments, CI status, ticket queues — without you asking again.
+A PromptEmitter re-runs an agent prompt every N minutes -- PR comments, CI status, ticket queues -- without you asking again.
 
 ```
 /loop 15m Check for new failing CI runs or PR review comments.
          Summarize only actionable items.
 
-→ Every 15 minutes, the agent scans and reports back.
-→ No news = no interruption.
+-> Every 15 minutes, the agent scans and reports back.
+-> No news = no interruption.
 ```
 
 **3. Tune the filter live**
 
-Every emitter has an EventFilter — regex rules that decide what gets dropped, kept, surfaced, or injected. The agent can tune these in real-time while you work, or you can lock them down with `ownership="userOwned"` so they stay exactly how you set them.
-
-## How it works (30-second version)
+Start with no rules and let all output through so you can see the stream shape. Then tighten progressively:
 
 ```
-                        Without tap              With tap
-                        ──────────────           ──────────────
-You:                    alt-tab, check logs      keep coding
-Build fails at 2:47pm:  you notice at 3:15pm     injected immediately
-PR gets reviewed:        you check manually       agent tells you
-CI flakes:               buried in notifications  filtered + surfaced
+1. Drop the noise:    { "match": "health_check|heartbeat", "outcome": "drop" }
+2. Inject the signal: { "match": "error|failure|rollback",  "outcome": "inject" }
+3. Keep the rest:     { "match": ".*",                       "outcome": "keep" }
 ```
 
-Under the hood:
+## How is this different from built-in background tasks?
 
-```
-You define an emitter (a command or a prompt)
-    |
-    v
-It runs in the background, producing output
-    |
-    v
-EventFilter decides per line: drop / keep / surface / inject
-    |
-    v
-Important events get injected into your Copilot session
-```
+Copilot CLI can run tasks in the background. This extension layers on top:
 
-- **drop** — discard, never stored
-- **keep** — store silently in the event stream
-- **surface** — store + show in the session timeline
-- **inject** — store + show + push into the conversation
-
-Prompt-based emitters always inject. Command-based emitters go through the filter.
+| Built-in background tasks | With tap-extension |
+| --- | --- |
+| You check task output manually | Output is filtered and injected automatically |
+| No filtering — you see everything or nothing | EventFilter rules drop noise, keep context, inject signal |
+| No scheduled re-checks | Timed emitters re-run on an interval |
+| Task results sit until you look | Important lines interrupt your session in real-time |
 
 ## Repo layout
 
@@ -138,4 +140,6 @@ npm run evals:validate-modes  # interactive vs prompt-mode gap
 
 ---
 
-**Ready to try it?** Clone the repo, copy the example config, launch `copilot`, and ask it to watch something. You'll see the difference in under a minute.
+**Ready to try it?** Clone, copy the config, launch `copilot`, and ask it to watch something. You'll see the difference in under a minute.
+
+**Want to contribute?** The extension is a single `.mjs` file with zero dependencies. Read the [reference](./docs/reference.md), explore the [use cases](./docs/use-cases.md), and open a PR.
