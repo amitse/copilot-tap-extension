@@ -1,6 +1,6 @@
 {
   "name": "copilot-tap-extension",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Copilot CLI extension for background event emitters, event streams, and session injection.",
   "type": "module",
   "license": "MIT",
