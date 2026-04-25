@@ -20,7 +20,7 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "prepublishOnly": "npm run build",
-    "check": "node --check ./src/tap-runtime.mjs && node --check ./.github/extensions/tap/extension.mjs && node --check ./evals/run.mjs && node --check ./examples/heartbeat.mjs",
+    "check": "node --check ./src/tap-runtime.mjs && node --check ./src/extension.mjs && node --check ./evals/run.mjs && node --check ./examples/heartbeat.mjs",
     "demo:heartbeat": "node ./examples/heartbeat.mjs",
     "evals:list": "node ./evals/run.mjs list",
     "evals:smoke": "node ./evals/run.mjs smoke",

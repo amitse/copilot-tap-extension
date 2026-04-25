@@ -12,8 +12,8 @@ import { CONFIG_LOCATIONS } from "../src/consts.mjs";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, "..");
-const extensionsRoot = path.join(repoRoot, ".github", "extensions");
-const repoSkillRoot = path.join(repoRoot, ".github", "skills");
+const extensionEntry = path.join(repoRoot, "src", "extension.mjs");
+const repoSkillRoot = path.join(repoRoot, "src", "skills");
 const casesPath = path.join(__dirname, "cases.yaml");
 const defaultResultsRoot = path.join(__dirname, "results");
 const configCandidatePaths = CONFIG_LOCATIONS.map((relativePath) => path.join(repoRoot, relativePath));
@@ -289,28 +289,11 @@ function buildInteractiveJudgePrompt(manifest, artifacts) {
 }
 
 async function ensureRepoScopedExtensionExists() {
-  let extensionEntries;
-
   try {
-    extensionEntries = await readdir(extensionsRoot, { withFileTypes: true });
+    await access(extensionEntry);
   } catch {
-    throw new Error(`Expected a repo-scoped extension before invoking Copilot automation. Missing directory: ${extensionsRoot}`);
+    throw new Error(`Expected extension entrypoint at ${extensionEntry}`);
   }
-
-  for (const entry of extensionEntries) {
-    if (!entry.isDirectory()) {
-      continue;
-    }
-
-    try {
-      await access(path.join(extensionsRoot, entry.name, "extension.mjs"));
-      return;
-    } catch {
-      // Keep looking for a valid extension entrypoint.
-    }
-  }
-
-  throw new Error(`Expected .github\\extensions\\*\\extension.mjs before invoking Copilot automation. Checked: ${extensionsRoot}`);
 }
 
 async function pathExists(filePath) {

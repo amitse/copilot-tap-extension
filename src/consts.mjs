@@ -6,7 +6,7 @@ export const CONFIG_LOCATIONS = [
   CONFIG_FILENAME,
   `${GITHUB_DIR}${path.sep}${CONFIG_FILENAME}`
 ];
-export const COPILOT_INSTRUCTIONS_PATH = `${GITHUB_DIR}/copilot-instructions.md`;
+export const COPILOT_INSTRUCTIONS_PATH = "src/copilot-instructions.md";
 
 export const MAX_STREAM_ENTRIES = 200;
 export const DEFAULT_STREAM = "main";

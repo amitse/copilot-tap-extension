@@ -1,6 +1,6 @@
 import { joinSession } from "@github/copilot-sdk/extension";
 
-import { createCopilotChannelsRuntime } from "../../../src/tap-runtime.mjs";
+import { createCopilotChannelsRuntime } from "./tap-runtime.mjs";
 
 const runtime = createCopilotChannelsRuntime({
   cwd: process.cwd()

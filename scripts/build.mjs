@@ -10,7 +10,7 @@ const dist = path.join(root, "dist");
 
 // 1. Bundle extension.mjs
 const result = await build({
-  entryPoints: [path.join(root, ".github", "extensions", "tap", "extension.mjs")],
+  entryPoints: [path.join(root, "src", "extension.mjs")],
   bundle: true,
   format: "esm",
   platform: "node",
@@ -30,14 +30,14 @@ if (result.errors.length === 0) {
 // 2. Copy loop skill
 mkdirSync(path.join(dist, "skills", "loop"), { recursive: true });
 copyFileSync(
-  path.join(root, ".github", "skills", "loop", "SKILL.md"),
+  path.join(root, "src", "skills", "loop", "SKILL.md"),
   path.join(dist, "skills", "loop", "SKILL.md")
 );
 console.log("✓ dist/skills/loop/SKILL.md copied");
 
 // 3. Copy copilot-instructions.md
 copyFileSync(
-  path.join(root, ".github", "copilot-instructions.md"),
+  path.join(root, "src", "copilot-instructions.md"),
   path.join(dist, "copilot-instructions.md")
 );
 console.log("✓ dist/copilot-instructions.md copied");

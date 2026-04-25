@@ -86,7 +86,7 @@ The extension supports session-scoped timed schedules:
 - If a timed PromptEmitter fires while the session is busy, that run defers to the next interval
 - Persistent config restores the emitter next session, but this is not a durable cloud scheduler
 
-The repo also ships a **`loop` skill** (`.github/skills/loop`) for quick setup:
+The repo also ships a **`loop` skill** (`src/skills/loop`) for quick setup:
 
 ```text
 /loop 5m check the deploy

@@ -204,7 +204,7 @@ PLAN.md                         # ubiquitous language and design decisions
 | [Reference](./docs/reference.md) | Look up tool parameters, config fields, or the event pipeline |
 | [Use cases and patterns](./docs/use-cases.md) | Recipes for deploy watchers, PR monitors, log tailers, and more |
 | [Evals](./docs/evals.md) | Run or extend the automated test suite |
-| [Copilot instructions](./.github/copilot-instructions.md) | Understand or customize how the agent uses this extension |
+| [Copilot instructions](./src/copilot-instructions.md) | Understand or customize how the agent uses this extension |
 | [Implementation plan](./PLAN.md) | Ubiquitous language and naming conventions for contributors |
 | [Evolution of the ※ icon](./docs/evolution-of-tap-icon.html) | 20 metaphors, 10 variants, one mark — the design story behind ※ tap |
 

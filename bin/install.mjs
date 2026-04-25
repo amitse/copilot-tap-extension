@@ -26,12 +26,14 @@ ${BRAND} — Copilot CLI extension installer
 Usage:
   npx copilot-tap-extension [options]
 
+If ※ tap is already installed, updates core files (extension + version)
+and preserves customizable artifacts. If fresh, does a full install.
+
 Options:
   --global, -g     Install to ~/.copilot/  (default)
   --local,  -l     Install to .github/  (project-scoped)
-  --force,  -f     Overwrite existing files without prompting
-  --update, -u     Update core files only (extension + version), skip customizable artifacts
-  --help,   -h     Show this help message
+  --full           Force a full install even if already installed
+  --help,  -h      Show this help message
 
 Installs:
   extensions/tap/extension.mjs    The bundled ※ tap extension
@@ -43,7 +45,7 @@ Installs:
 
 function parseArgs(argv) {
   const args = argv.slice(2);
-  const flags = { scope: "global", force: false, help: false, update: false };
+  const flags = { scope: "global", full: false, help: false };
   for (const arg of args) {
     switch (arg) {
       case "--global":
@@ -54,14 +56,14 @@ function parseArgs(argv) {
       case "-l":
         flags.scope = "local";
         break;
+      case "--full":
+        flags.full = true;
+        break;
+      // Keep legacy flags working
       case "--force":
       case "-f":
-        flags.force = true;
-        break;
       case "--update":
       case "-u":
-        flags.update = true;
-        flags.force = true;
         break;
       case "--help":
       case "-h":
@@ -83,14 +85,10 @@ function getTargetRoot(scope) {
   return path.join(process.cwd(), ".github");
 }
 
-function copyArtifact(src, dest, label, flags) {
+function copyArtifact(src, dest, label) {
   if (!existsSync(src)) {
     console.error(`  ✗ ${label}: source not found (${src})`);
     return false;
-  }
-  if (existsSync(dest) && !flags.force) {
-    console.log(`  ⊘ ${label}: already exists, skipping (use --force to overwrite)`);
-    return true;
   }
   mkdirSync(path.dirname(dest), { recursive: true });
   copyFileSync(src, dest);
@@ -107,12 +105,18 @@ function getInstalledVersion(targetRoot) {
   }
 }
 
+function isAlreadyInstalled(targetRoot) {
+  return existsSync(path.join(targetRoot, "extensions", EXT_DIR_NAME, "extension.mjs"));
+}
+
 function install(flags) {
   const targetRoot = getTargetRoot(flags.scope);
   const scopeLabel = flags.scope === "global" ? "global (~/.copilot)" : "local (.github)";
   const packageVersion = getPackageVersion();
+  const installed = isAlreadyInstalled(targetRoot);
+  const isUpdate = installed && !flags.full;
 
-  if (flags.update) {
+  if (isUpdate) {
     const installedVersion = getInstalledVersion(targetRoot);
     if (installedVersion && installedVersion === packageVersion) {
       console.log(`\n${BRAND} — already up to date (v${installedVersion})\n`);
@@ -150,21 +154,21 @@ function install(flags) {
     }
   ];
 
-  const artifacts = flags.update ? coreArtifacts : [...coreArtifacts, ...ancillaryArtifacts];
+  const artifacts = isUpdate ? coreArtifacts : [...coreArtifacts, ...ancillaryArtifacts];
 
   let allOk = true;
   for (const { src, dest, label } of artifacts) {
-    if (!copyArtifact(src, dest, label, flags)) {
+    if (!copyArtifact(src, dest, label)) {
       allOk = false;
     }
   }
 
   console.log();
   if (allOk) {
-    const verb = flags.update ? "updated" : "installed";
+    const verb = isUpdate ? "updated" : "installed";
     console.log(`✓ ${BRAND} ${verb} to ${targetRoot}`);
   } else {
-    console.error(`⚠  Some artifacts could not be ${flags.update ? "updated" : "installed"}.`);
+    console.error(`⚠  Some artifacts could not be ${isUpdate ? "updated" : "installed"}.`);
     process.exit(1);
   }
 }

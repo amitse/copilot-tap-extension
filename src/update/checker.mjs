@@ -1,23 +1,18 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
-import { execFile } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import os from "node:os";
 
 const PKG_NAME = "copilot-tap-extension";
 const REGISTRY_URL = `https://registry.npmjs.org/${PKG_NAME}/latest`;
-const BRAND = "※ tap";
 
 const UPDATE_STATE_DIR = path.join(os.homedir(), ".copilot");
 const UPDATE_STATE_FILE = path.join(UPDATE_STATE_DIR, ".tap-update-state.json");
 const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
-const UPDATE_TIMEOUT_MS = 120_000;
 
 function getInstalledVersion() {
   try {
     const extensionDir = path.dirname(fileURLToPath(import.meta.url));
-    // In bundled form, import.meta.url points to the extension.mjs directory.
-    // In source form, we're in src/update/ — walk up to find version.json beside extension.
     const candidates = [
       path.join(extensionDir, "version.json"),
       path.join(extensionDir, "..", "version.json"),
@@ -31,16 +26,6 @@ function getInstalledVersion() {
     return null;
   } catch {
     return null;
-  }
-}
-
-function isGlobalInstall() {
-  try {
-    const extensionDir = path.dirname(fileURLToPath(import.meta.url));
-    const globalDir = path.join(os.homedir(), ".copilot");
-    return extensionDir.startsWith(globalDir);
-  } catch {
-    return false;
   }
 }
 
@@ -104,30 +89,18 @@ function isNewer(installed, latest) {
   return false;
 }
 
-function runUpdate() {
-  const npx = process.platform === "win32" ? "npx.cmd" : "npx";
-  return new Promise((resolve) => {
-    execFile(
-      npx,
-      ["--yes", `${PKG_NAME}@latest`, "--force", "-g", "--update"],
-      { timeout: UPDATE_TIMEOUT_MS, windowsHide: true },
-      (err) => resolve(!err)
-    );
-  });
-}
-
-export async function checkAndUpdate(sessionPort) {
+export async function checkForUpdate(sessionPort) {
   try {
-    if (!isGlobalInstall()) {
-      return;
-    }
     if (!shouldCheck()) {
       return;
     }
 
     const installed = getInstalledVersion();
-    const latest = await fetchLatestVersion();
+    if (!installed) {
+      return;
+    }
 
+    const latest = await fetchLatestVersion();
     if (!latest) {
       return;
     }
@@ -138,18 +111,10 @@ export async function checkAndUpdate(sessionPort) {
       return;
     }
 
-    const fromLabel = installed ?? "unknown";
-    await sessionPort.log(`${BRAND} update available: v${fromLabel} → v${latest}. Updating…`);
-
-    const ok = await runUpdate();
-    if (ok) {
-      await sessionPort.log(`${BRAND} updated to v${latest}. Changes take effect next session.`);
-    } else {
-      await sessionPort.log(`${BRAND} auto-update failed. Run \`npx ${PKG_NAME}@latest --force -g\` manually.`, {
-        level: "warning"
-      });
-    }
+    await sessionPort.log(
+      `Update available: v${installed} → v${latest}. Run \`npx ${PKG_NAME}\` to update.`
+    );
   } catch {
-    // Auto-update must never break session startup.
+    // Update check must never break session startup.
   }
 }
