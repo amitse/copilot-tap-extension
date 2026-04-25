@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" width="64" height="64">
+  <line x1="0.5" y1="9" x2="19.5" y2="9" stroke="#2D7D9E" stroke-width="1.0" stroke-linecap="round" opacity="0.4"/>
+  <line x1="0.5" y1="11" x2="19.5" y2="11" stroke="#2D7D9E" stroke-width="1.0" stroke-linecap="round" opacity="0.4"/>
+  <path d="M2.5 9.5 L4 10 L2.5 10.5" stroke="#3994BC" stroke-width="1.0" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.5"/>
+  <path d="M15.5 9.5 L17 10 L15.5 10.5" stroke="#3994BC" stroke-width="1.0" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.5"/>
+  <circle cx="10" cy="9" r="1.0" fill="#3994BC" opacity="0.6"/>
+  <circle cx="10" cy="11" r="1.0" fill="#3994BC" opacity="0.6"/>
+  <path d="M5.5 5.5 L14.5 14.5" stroke="#3994BC" stroke-width="2.2" stroke-linecap="round" fill="none"/>
+  <path d="M14.5 5.5 L5.5 14.5" stroke="#3994BC" stroke-width="2.2" stroke-linecap="round" fill="none"/>
+  <circle cx="10" cy="4.0" r="1.6" fill="#3994BC"/>
+  <circle cx="16.0" cy="10" r="1.6" fill="#3994BC"/>
+  <circle cx="10" cy="16.0" r="1.6" fill="#2D7D9E"/>
+  <circle cx="4.0" cy="10" r="1.6" fill="#2D7D9E"/>
+</svg>
