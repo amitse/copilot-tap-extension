@@ -1,4 +1,4 @@
-# Copilot instructions for copilot-channels-extension
+# Copilot instructions for ※ tap
 
 Use this extension as a background-awareness layer for long-running or polled signals.
 

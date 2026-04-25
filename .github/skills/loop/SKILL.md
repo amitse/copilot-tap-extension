@@ -1,6 +1,6 @@
 ---
 name: loop
-description: "Create a prompt-based scheduled loop with copilot-channels-extension. Use for requests like '/loop 5m check the deploy' or any ask to run a prompt on a recurring interval."
+description: "Create a prompt-based scheduled loop with ※ tap. Use for requests like '/loop 5m check the deploy' or any ask to run a prompt on a recurring interval."
 argument-hint: "<interval|idle> <prompt>"
 user-invocable: true
 ---

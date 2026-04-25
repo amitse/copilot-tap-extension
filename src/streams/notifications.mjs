@@ -2,7 +2,7 @@ import { NOTIFICATION_BATCH_SIZE } from "../consts.mjs";
 
 export function buildNotificationPrompt(batch) {
   return [
-    "Background event stream update from copilot-channels-extension:",
+    "※ tap — background event stream update:",
     ...batch.map((item) => {
       const streamLabel = item.stream ? `/${item.stream}` : "";
       return `- stream=${item.channel} emitter=${item.monitorName}${streamLabel}: ${item.text}`;

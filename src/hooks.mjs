@@ -81,7 +81,7 @@ export function createHooks({ streams, configStore, supervisor, sessionPort, set
 
       return {
         additionalContext: [
-          "copilot-channels-extension is active.",
+          "※ tap is active.",
           "Use event emitters to run background commands or prompts; use event filters to control which events are kept, surfaced, or injected; use session injectors when you want events surfaced or injected into the session.",
           "Session injector updates are sent immediately from emitter output and do not wait for transcript events.",
           `Repo guidance is available at ${COPILOT_INSTRUCTIONS_PATH} if you want to read the project-specific instructions.`,
@@ -104,8 +104,8 @@ export function createHooks({ streams, configStore, supervisor, sessionPort, set
     onSessionEnd: async () => {
       await supervisor.stopAll();
       return {
-        sessionSummary: `copilot-channels-extension tracked ${streams.size()} event streams and ${configStore.getEmitters().length} persistent emitter definitions.`,
-        cleanupActions: ["Stopped session emitters managed by copilot-channels-extension."]
+        sessionSummary: `※ tap tracked ${streams.size()} event streams and ${configStore.getEmitters().length} persistent emitter definitions.`,
+        cleanupActions: ["Stopped session emitters managed by ※ tap."]
       };
     }
   };

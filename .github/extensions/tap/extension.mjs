@@ -14,7 +14,7 @@ const session = await joinSession({
 runtime.attachSession(session);
 runtime.appendStreamMessage(runtime.DEFAULT_STREAM, {
   source: "system",
-  text: "copilot-channels-extension loaded."
+  text: "※ tap loaded."
 });
 
 session.on("session.shutdown", () => {

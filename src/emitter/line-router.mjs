@@ -43,7 +43,7 @@ export function createLineRouter({ streams, notifications, sessionPort }) {
 
     if (outcome === EVENT_OUTCOME.SURFACE) {
       if (sessionPort && sessionPort.log) {
-        sessionPort.log(`[${emitter.name}] ${text}`);
+        sessionPort.log(`※ ${emitter.name}: ${text}`);
       }
     } else if (outcome === EVENT_OUTCOME.INJECT) {
       notifications.enqueue({
