@@ -22,7 +22,8 @@
     "event-filter"
   ],
   "devDependencies": {
-    "yaml": "^2.8.3",
-    "@github/copilot-sdk": "^0.2.2"
+    "@github/copilot-sdk": "^0.2.2",
+    "playwright": "^1.59.1",
+    "yaml": "^2.8.3"
   }
 }
