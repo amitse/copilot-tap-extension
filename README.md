@@ -32,7 +32,27 @@ Background commands and agent prompts produce output line by line. An EventFilte
 
 ## Get started
 
-Prerequisites: [Node.js](https://nodejs.org/) and [Copilot CLI](https://docs.github.com/en/copilot/github-copilot-in-the-cli).
+Prerequisites: [Node.js](https://nodejs.org/) ≥ 20 and [Copilot CLI](https://docs.github.com/en/copilot/github-copilot-in-the-cli).
+
+### Install via npx (recommended)
+
+```bash
+# Install globally (available in all projects)
+npx copilot-tap-extension
+
+# Install locally (project-scoped, committed with your repo)
+npx copilot-tap-extension --local
+```
+
+This installs the bundled extension, the `/loop` skill, and the agent instructions to the appropriate Copilot directory. Run `npx copilot-tap-extension --help` for all options.
+
+To update to the latest version, re-run the same command with `--force`:
+
+```bash
+npx copilot-tap-extension --force
+```
+
+### Install from source
 
 ```bash
 git clone https://github.com/amitse/copilot-tap-extension

@@ -1,16 +1,30 @@
 {
   "name": "copilot-tap-extension",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Copilot CLI extension for background event emitters, event streams, and session injection.",
   "type": "module",
   "license": "MIT",
+  "bin": {
+    "copilot-tap-extension": "bin/install.mjs"
+  },
+  "files": [
+    "bin/",
+    "dist/",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
+    "build": "node scripts/build.mjs",
+    "prepublishOnly": "npm run build",
     "check": "node --check ./src/tap-runtime.mjs && node --check ./.github/extensions/tap/extension.mjs && node --check ./evals/run.mjs && node --check ./examples/heartbeat.mjs",
     "demo:heartbeat": "node ./examples/heartbeat.mjs",
     "evals:list": "node ./evals/run.mjs list",
     "evals:smoke": "node ./evals/run.mjs smoke",
     "evals:run": "node ./evals/run.mjs run --all --concurrency 10",
-    "evals:validate-modes": "node ./evals/run.mjs validate-modes"
+    "evals:validate-modes": "node ./evals/run.mjs validate-modes",
+    "version:patch": "npm version patch -m \"v%s\"",
+    "version:minor": "npm version minor -m \"v%s\"",
+    "version:major": "npm version major -m \"v%s\""
   },
   "keywords": [
     "copilot",
@@ -23,6 +37,7 @@
   ],
   "devDependencies": {
     "@github/copilot-sdk": "^0.2.2",
+    "esbuild": "^0.28.0",
     "playwright": "^1.59.1",
     "yaml": "^2.8.3"
   }

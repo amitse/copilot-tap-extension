@@ -3,3 +3,4 @@ copilot-channels.config.json
 *.log
 evals/results
 icons/
+dist/
