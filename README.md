@@ -34,6 +34,23 @@ Background commands and agent prompts produce output line by line. An EventFilte
 
 Prerequisites: [Node.js](https://nodejs.org/) ≥ 20 and [Copilot CLI](https://docs.github.com/en/copilot/github-copilot-in-the-cli).
 
+> **Important:** This extension requires Copilot CLI to be running with **experiments enabled**. Extensions and background-task features are gated behind this flag.
+
+**How to enable experiments:**
+
+```bash
+# Start Copilot CLI with experiments on
+copilot --experimental
+```
+
+Or, if Copilot CLI is already running, type the following inside the session:
+
+```
+/experimental
+```
+
+Once enabled, the experimental state persists across sessions -- you only need to do this once. You can also disable it at any time with `copilot --no-experimental`.
+
 ### Install via npx (recommended)
 
 ```bash
