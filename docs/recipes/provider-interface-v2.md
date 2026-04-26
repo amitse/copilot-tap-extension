@@ -110,13 +110,16 @@ Providers never manage sessions. They see:
 Provider connects via WS
     │
     ▼
+Provider sends: auth (gateway secret)
+    │
+    ▼
 Gateway sends: sessions (list of active sessions)
     │
     ▼
 Provider sends: hello (name, session, instance, tools, hooks, context)
     │
     ▼
-Gateway sends: hello.ack (reconnectToken, persistDir, session info)
+Gateway sends: hello.ack (reconnectToken, persistDir)
     │
     ▼
 Gateway registers tools + hook rules in the bound session(s)
@@ -161,7 +164,7 @@ The gateway generates a one-time **gateway secret** on first startup, written to
 
 Gateway responds with `sessions` on success, or closes the socket on failure. Internal providers (LocalProviderTransport) skip auth. The gateway spawns project providers with the secret as env var `TAP_GATEWAY_SECRET`.
 
-**External provider bootstrap:** The gateway also serves a one-shot HTTP endpoint at `http://localhost:9400/secret?origin=localhost` that returns the secret. This endpoint only responds to requests from `127.0.0.1`/`::1` and requires the caller to present a valid origin. Browser scripts can fetch this to obtain the secret before opening the WebSocket.
+**External provider bootstrap:** The gateway also serves a one-shot HTTP endpoint at `http://localhost:9400/secret` that returns the secret. This endpoint only responds to requests from `127.0.0.1`/`::1`. No origin or CORS restrictions — any local process or injected page script can fetch it. The security boundary is localhost network access, not origin.
 
 ### Session IDs and correlation IDs
 
@@ -241,7 +244,15 @@ The gateway enforces push budgets scoped by **(provider, sessionId)**:
 ### Payload limits
 
 - Max message size: **5 MB** for `tool.result` messages (screenshots, large outputs). **2 MB** for all other messages.
-- For payloads exceeding 5 MB, providers should write to a temp file and return a `{ "file": "/tmp/screenshot-abc.png" }` reference instead of inline data.
+- For payloads exceeding 5 MB, local providers should write to `persistDir` and return a file reference:
+  ```json
+  { "type": "tool.result", "id": "call-123", "file": { "path": "/home/user/.copilot/providers/browser/screenshot-abc.png", "mimeType": "image/png", "size": 8421000, "ttl": 300 } }
+  ```
+  - `path` — absolute path on the local filesystem. Must be within the provider's `persistDir`.
+  - `mimeType` — MIME type for the gateway to pass to Copilot.
+  - `size` — byte size.
+  - `ttl` — seconds until the provider may delete the file. Gateway must read it before TTL expires.
+  - Browser providers cannot use file refs (no filesystem access). Browser screenshots should be downscaled or compressed to stay within the 5 MB inline limit.
 - Max tools per provider: **100**.
 - Max hook rules per provider: **50**.
 - Max streams per provider: **20**.
@@ -416,16 +427,18 @@ A provider can send a new `hello` on an existing connection to change its sessio
   "type": "stream.history",
   "queryId": "q-1",
   "streams": {
-    "ci-watch": [
+    "ci-watch@ci-watcher": [
       { "ts": "2026-04-26T14:01:00Z", "event": "failure on test/auth.spec.ts" },
       { "ts": "2026-04-26T14:00:00Z", "event": "running" }
     ],
-    "git-watch": [
+    "git-watch@guardian": [
       { "ts": "2026-04-26T14:00:30Z", "event": "behind=2" }
     ]
   }
 }
 ```
+
+Stream keys use `stream@provider` format matching the query.
 
 ---
 
@@ -643,12 +656,15 @@ When a filter exists, the gateway applies it to `push` events on that stream. Th
 {
   "type": "stream.query",
   "queryId": "q-1",
-  "streams": ["ci-watch", "git-watch", "deploy-watch"],
+  "sessionId": "abc123",
+  "streams": ["ci-watch@ci-watcher", "git-watch@guardian"],
   "last": 10
 }
 ```
 
-Gateway responds with `stream.history`. Providers can query their own streams and streams from other providers in the same session.
+`sessionId` is optional for single-session providers, required for `"all"`-bound providers.
+
+Stream names use the format `stream@provider` to avoid collisions. Omit `@provider` to query your own streams. Cross-provider reads require `streamAccess: "all"` in `hello`.
 
 ### `shutdown.ready` — async cleanup complete
 
@@ -835,29 +851,50 @@ ws.on("message", (raw) => {
 });
 ```
 
-### Browser — injected via Detour, with session picker
+### Browser — injected via Detour, with session picker and auth
 
 ```js
-const ws = new WebSocket("ws://localhost:9400");
-let sessions = [];
+const GATEWAY = "localhost:9400";
+let ws, sessions = [], registered = false, secret;
 
-ws.onmessage = (e) => {
-  const msg = JSON.parse(e.data);
+// Step 1: fetch auth secret from gateway HTTP endpoint
+fetch(`http://${GATEWAY}/secret`)
+  .then(r => r.text())
+  .then(s => { secret = s.trim(); connect(); })
+  .catch(() => showOverlay("No Copilot session — start one to connect"));
 
-  if (msg.type === "sessions" || msg.type === "sessions.updated") {
-    sessions = msg.active;
-    if (!registered) {
-      if (sessions.length === 1) register(sessions[0].id);
-      else showSessionPicker(sessions, (s) => register(s.id));
+function connect() {
+  ws = new WebSocket(`ws://${GATEWAY}`);
+
+  ws.onopen = () => {
+    // Step 2: authenticate
+    ws.send(JSON.stringify({ type: "auth", secret }));
+  };
+
+  ws.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+
+    // Step 3: receive session list
+    if (msg.type === "sessions" || msg.type === "sessions.updated") {
+      sessions = msg.active;
+      if (!registered) {
+        if (sessions.length === 0) showOverlay("Waiting for Copilot session...");
+        else if (sessions.length === 1) register(sessions[0].id);
+        else showSessionPicker(sessions, (s) => register(s.id));
+      }
+      return;
     }
-    return;
-  }
 
-  if (msg.type === "tool.call") handleToolCall(msg);
-  if (msg.type === "tool.cancel") handleCancel(msg);
-};
+    if (msg.type === "tool.call") handleToolCall(msg);
+    if (msg.type === "tool.cancel") handleCancel(msg);
+  };
 
-let registered = false;
+  ws.onclose = () => {
+    registered = false;
+    setTimeout(connect, 5000); // auto-reconnect
+  };
+}
+
 function register(sessionId) {
   registered = true;
   ws.send(JSON.stringify({
@@ -868,7 +905,7 @@ function register(sessionId) {
     metadata: { url: location.href, title: document.title },
     tools: [
       { name: "page_title", description: "Get page title", parameters: {} },
-      { name: "screenshot", description: "Screenshot viewport", timeout: 15000, parameters: {} }
+      { name: "screenshot", description: "Screenshot viewport (downscaled to <5MB)", timeout: 15000, parameters: {} }
     ]
   }));
 }
@@ -879,13 +916,21 @@ function handleToolCall(msg) {
   }
   if (msg.tool === "screenshot") {
     ws.send(JSON.stringify({ type: "tool.progress", id: msg.id, message: "Capturing..." }));
-    html2canvas(document.body).then(canvas => {
+    html2canvas(document.body, { scale: 0.5 }).then(canvas => {
       ws.send(JSON.stringify({
         type: "tool.result", id: msg.id,
-        data: { image: canvas.toDataURL("image/png") }
+        data: { image: canvas.toDataURL("image/jpeg", 0.7) }
       }));
     });
   }
+}
+
+function handleCancel(msg) {
+  // Best-effort: send CANCELLED result
+  ws.send(JSON.stringify({
+    type: "tool.result", id: msg.id,
+    error: "Cancelled", errorCode: "CANCELLED", retryable: false
+  }));
 }
 ```
 
