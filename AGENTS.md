@@ -29,7 +29,7 @@ The GitHub Actions workflow (`.github/workflows/publish.yml`) automatically publ
 
 ## Project structure
 
-Source code lives in `src/`, not `.github/`. The `.github/` directory is only for GitHub workflows.
+Source code lives in `src/`. The `.github/` directory is only for GitHub workflows.
 
 - `src/extension.mjs` — Extension entry point (bundled by esbuild into `dist/extension.mjs`)
 - `src/tap-runtime.mjs` — Runtime factory that wires all subsystems together
@@ -41,7 +41,7 @@ Source code lives in `src/`, not `.github/`. The `.github/` directory is only fo
 
 ### COPILOT_HOME
 
-The Copilot CLI config directory is not hardcoded to `~/.copilot`. It is determined by the `COPILOT_HOME` environment variable, falling back to `~/.copilot`. All code that references the config directory must use this pattern:
+The Copilot CLI config directory  si determined by the `COPILOT_HOME` environment variable, falling back to `~/.copilot`. All code that references the config directory must use this pattern:
 
 ```js
 const copilotHome = process.env.COPILOT_HOME || path.join(os.homedir(), ".copilot");
