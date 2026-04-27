@@ -1,6 +1,6 @@
 ---
 name: loop
-description: "Create a prompt-based scheduled loop with ※ tap. Use for requests like '/loop 5m check the deploy' or any ask to run a prompt on a recurring interval."
+description: "Run a prompt on a recurring schedule or when idle. Use when the user says 'loop', 'every 5 minutes', 'check periodically', 'keep watching', 'repeat this', 'run when idle', or wants any prompt to re-run automatically."
 argument-hint: "<interval|idle> <prompt>"
 user-invocable: true
 ---

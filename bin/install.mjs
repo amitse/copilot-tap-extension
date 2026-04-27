@@ -40,7 +40,7 @@ Installs:
   extensions/tap/extension.mjs    The bundled ※ tap extension
   extensions/tap/version.json     Installed version metadata
   skills/loop/SKILL.md            The /loop skill for prompt-based loops
-  skills/provider/SKILL.md        The /provider skill for scaffolding providers
+  skills/create-provider/SKILL.md The /create-provider skill for scaffolding providers
   copilot-instructions.md         Agent instructions for using ※ tap
 `);
 }
@@ -174,9 +174,9 @@ function install(flags) {
       label: "skills/loop/SKILL.md"
     },
     {
-      src: path.join(distDir, "skills", "provider", "SKILL.md"),
-      dest: path.join(targetRoot, "skills", "provider", "SKILL.md"),
-      label: "skills/provider/SKILL.md"
+      src: path.join(distDir, "skills", "create-provider", "SKILL.md"),
+      dest: path.join(targetRoot, "skills", "create-provider", "SKILL.md"),
+      label: "skills/create-provider/SKILL.md"
     },
     {
       src: path.join(distDir, "copilot-instructions.md"),
