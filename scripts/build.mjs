@@ -40,6 +40,14 @@ copyFileSync(
 );
 console.log("✓ dist/skills/loop/SKILL.md copied");
 
+// 3. Copy provider skill
+mkdirSync(path.join(dist, "skills", "provider"), { recursive: true });
+copyFileSync(
+  path.join(root, "src", "skills", "provider", "SKILL.md"),
+  path.join(dist, "skills", "provider", "SKILL.md")
+);
+console.log("✓ dist/skills/provider/SKILL.md copied");
+
 // 3. Copy copilot-instructions.md
 copyFileSync(
   path.join(root, "src", "copilot-instructions.md"),
