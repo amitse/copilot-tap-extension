@@ -154,6 +154,27 @@ Disconnect (or crash):
 
 ## Protocol rules
 
+### Version negotiation
+
+Provider includes `protocolVersion` in `hello`. Gateway includes `protocolVersion` in `hello.ack`.
+
+```json
+// hello
+{ "type": "hello", "name": "...", "protocolVersion": 2, ... }
+
+// hello.ack
+{ "type": "hello.ack", "protocolVersion": 2, "providerId": "p-8f3a", ... }
+```
+
+- If the gateway does not support the requested version, it sends `error` with code `UNSUPPORTED_VERSION` and closes the connection.
+- Receivers MUST ignore unknown fields in any message (forward-compatible).
+- Receivers MUST ignore unknown message types (log and discard, do not disconnect).
+- New optional message types or fields can be added in minor versions without negotiation. New required behavior requires a major version bump.
+
+### Provider identity
+
+Gateway assigns a stable `providerId` in `hello.ack`. This ID is included in `error` messages and can be used for debugging. It persists across reconnects (same `reconnectToken` → same `providerId`).
+
 ### Authentication
 
 The gateway generates a one-time **gateway secret** on first startup, written to `$COPILOT_HOME/.tap-gateway-secret`. All WS connections must include the secret as the first message:
@@ -189,7 +210,54 @@ The gateway sends `error` for any invalid message:
 }
 ```
 
-Error codes: `INVALID_JSON`, `UNKNOWN_TYPE`, `INVALID_SESSION`, `AUTH_FAILED`, `DUPLICATE_INSTANCE`, `TOOL_CONFLICT`, `RATE_LIMITED`, `PAYLOAD_TOO_LARGE`.
+Error codes: `INVALID_JSON`, `UNKNOWN_TYPE`, `INVALID_SESSION`, `AUTH_FAILED`, `DUPLICATE_INSTANCE`, `TOOL_CONFLICT`, `RATE_LIMITED`, `PAYLOAD_TOO_LARGE`, `UNSUPPORTED_VERSION`.
+
+Errors include `providerId` and `sessionId` when applicable for debugging:
+
+```json
+{
+  "type": "error",
+  "code": "TOOL_CONFLICT",
+  "message": "Tool 'screenshot' already registered by provider 'browser-tab-a'",
+  "replyTo": "tools.update",
+  "providerId": "p-8f3a",
+  "sessionId": "abc123"
+}
+```
+
+### Update acknowledgments
+
+All state-changing provider→gateway messages (`tools.update`, `hooks.update`, `context.update`, `filter.set`) receive an `ack`:
+
+```json
+{
+  "type": "ack",
+  "replyTo": "tools.update",
+  "revision": 3
+}
+```
+
+The `revision` is a monotonically increasing counter per (provider, session). After a provider receives `ack` with revision N, the gateway guarantees all dispatches (tool calls, gate checks, transforms) use revision N state. This prevents races between updates and dispatches.
+
+On failure, the gateway sends `error` instead of `ack`.
+
+### Tool concurrency
+
+Providers can declare concurrency limits in `hello`:
+
+```json
+{
+  "type": "hello",
+  "name": "browser",
+  "concurrency": { "max": 1, "scope": "instance" },
+  ...
+}
+```
+
+- `max` — maximum concurrent in-flight `tool.call`s (default: unlimited)
+- `scope` — what the limit applies to: `"instance"` (per name+instance), `"provider"` (all instances), or `"tool"` (per tool name)
+
+When the limit is reached, the gateway queues additional calls and dispatches them in order as results arrive. If the queue exceeds 10, the gateway returns `errorCode: "RATE_LIMITED"` to Copilot for new calls.
 
 ### Tool name collisions
 
@@ -263,7 +331,12 @@ The gateway enforces push budgets scoped by **(provider, sessionId)**:
 
 When a provider is bound to `"all"`:
 - Its tools and context are registered in all **currently active** sessions at `hello` time.
-- When a new session starts, the gateway registers the provider's tools and context in the new session. **Fail-closed gate rules are NOT activated** until the provider receives `sessions.updated` and has a chance to initialize session-specific state. Gates become active after a 5s grace period or after the provider sends `hooks.update` for that session.
+- When a new session starts, the gateway sends `sessions.updated` to the provider but does **NOT** register tools/hooks/context in the new session yet. The provider must explicitly acknowledge readiness:
+  ```json
+  { "type": "session.ready", "sessionId": "new-session-id" }
+  ```
+  Only after `session.ready` does the gateway register the provider's tools/hooks/context in that session. This gives the provider time to initialize session-specific state, caches, or auth. If the provider never sends `session.ready`, its tools never appear in that session.
+- **Fail-closed gate rules** are also deferred until `session.ready`.
 - When a session ends, the provider receives `session.lifecycle: shutdown.pending` with that session's `sessionId`. After cleanup, provider sends `shutdown.ready` with the same `sessionId`. The provider remains connected for other sessions.
 
 ### Gateway process model
@@ -582,7 +655,7 @@ Gateway surfaces via `session.log()`. Final result still comes via `tool.result`
 | Field | Required | Description |
 |---|---|---|
 | `stream` | no | Named stream. Defaults to provider name if omitted. One provider can manage multiple streams. |
-| `sessionId` | no | Target session. Required for `"all"`-bound providers to target a specific session. Omit to target all bound sessions. Single-session providers can always omit. |
+| `sessionId` | no | Target session. **Required** for `"all"`-bound providers (must specify a session or `"broadcast": true`). Single-session providers can always omit. |
 | `event` | yes (unless `prompt`) | Event text to store/surface/inject. |
 | `prompt` | no | When present, triggers a full AI turn via `session.send({ prompt })`. Use for PromptEmitter-style injections. |
 | `level` | yes | `"inject"` = `session.send()`, triggers AI turn. `"surface"` = `session.log()`, visible in timeline. `"keep"` = store in EventStream only. |
@@ -763,14 +836,15 @@ Multiple providers can append to the same section. Gateway concatenates in regis
 
 ## Summary: the complete interface
 
-### Gateway → Provider (11 message types)
+### Gateway → Provider (12 message types)
 
 | Message | When | Round-trip? |
 |---|---|---|
 | `sessions` | On connect (after auth) | — |
 | `sessions.updated` | Session starts/ends | — |
-| `hello.ack` | After `hello` | — |
-| `error` | Invalid message from provider | — |
+| `hello.ack` | After `hello` (includes `providerId`, `protocolVersion`) | — |
+| `ack` | After `tools.update`, `hooks.update`, `context.update`, `filter.set` | — |
+| `error` | Invalid message from provider (includes `providerId`, `sessionId`) | — |
 | `tool.call` | Copilot invokes a tool | Expects `tool.result` |
 | `tool.cancel` | Tool timed out or session interrupted | — |
 | `gate.check` | Hook rule matched with `action: "gate"` | Expects `gate.result` (5s, fail closed) |
@@ -779,13 +853,14 @@ Multiple providers can append to the same section. Gateway concatenates in regis
 | `session.lifecycle` | Session state change (includes `sessionId`) | — |
 | `stream.history` | Response to `stream.query` | — |
 
-### Provider → Gateway (14 message types)
+### Provider → Gateway (16 message types)
 
 | Message | When |
 |---|---|
 | `auth` | First message on connect |
-| `hello` | After receiving `sessions` |
+| `hello` | After receiving `sessions` (includes `protocolVersion`) |
 | `goodbye` | Graceful disconnect |
+| `session.ready` | Acknowledge readiness for a new session (`"all"`-bound providers) |
 | `tool.result` | Responding to `tool.call` |
 | `tool.progress` | Incremental status for slow tools |
 | `gate.result` | Responding to `gate.check` |
@@ -798,7 +873,7 @@ Multiple providers can append to the same section. Gateway concatenates in regis
 | `stream.query` | Read EventStream history |
 | `shutdown.ready` | Async cleanup complete (includes `sessionId`) |
 
-### Total: 25 message types
+### Total: 28 message types
 
 ---
 
